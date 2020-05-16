@@ -1,4 +1,0 @@
-char unsafe_load(char*, int);
-void unsafe_store(char*, int, char);
-int mkint(int);
-

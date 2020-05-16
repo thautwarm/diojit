@@ -1,4 +1,0 @@
-(executable
- (public_name dynjit)
- (name main)
- (libraries dynjit base))
