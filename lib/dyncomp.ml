@@ -7,7 +7,7 @@ type plugin = ..
 
 exception Loaded of string * plugin
 
-let provide p = 
+let provide p =
   raise (Loaded 
     ("This module is a plugin, and should not be run directly", p))
 
