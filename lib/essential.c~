@@ -1,0 +1,15 @@
+#include "stdio.h"
+#include "stdint.h"
+uint8_t unsafe_load(uint8_t* buf, int i){
+  return buf[i>>1];
+}
+
+void unsafe_store(uint8_t* buf, int i, uint8_t v){
+  printf("%d %hhu\n", i, v >> 1);
+  buf[i] = v >> 1;
+}
+
+int mkint(int i){
+  return i >> 1;
+}
+

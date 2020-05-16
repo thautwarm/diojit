@@ -1,0 +1,4 @@
+(library
+ (name dynjit)
+ (libraries (c_names essential.c))
+ (flags :standard -cclib -lpython3.8))
