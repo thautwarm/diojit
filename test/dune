@@ -1,3 +1,3 @@
 (test
- (name dynjit)
+ (name spec)
  (libraries))

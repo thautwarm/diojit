@@ -24,7 +24,7 @@ external cPyErr_GivenExceptionMatches : pyo -> pyo -> b32 = "PyErr_GivenExceptio
 
 external cPyEval_EvalCode : pyo -> pyo -> pyo -> pyo = "PyEval_EvalCode" [@@noalloc]
 external cPy_Initialize : unit -> unit = "Py_Initialize" [@@noalloc]
-external cPy_CompileString : string -> string -> start_sym -> pyo = "Py_CompileString"
+external cPy_CompileString : string -> string -> start_sym -> pyo = "Py_CompileString" [@@noalloc]
 external cPyEval_GetBuiltins : unit -> pyo = "PyEval_GetBuiltins" [@@noalloc]
 
 let _is_initialzed = ref false
@@ -40,7 +40,7 @@ module Py() = struct
     if !_is_initialzed then begin
         !_pyhelpers
       end
-    else 
+    else
       let _ = cPy_Initialize() in
       let _ = (_is_initialzed := true) in
       let tb = cPyEval_GetBuiltins() in  (* temporary builtins *)
@@ -51,7 +51,6 @@ module Py() = struct
         };
       !_pyhelpers
 end
-                      
 
 let main() =
   let module Py = Py() in
