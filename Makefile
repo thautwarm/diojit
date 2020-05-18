@@ -31,6 +31,6 @@ plugin: local-install
 .PHONY: clean
 clean:
 	rm -rf $(builddir)
-	python cmds.py find $(srcdir) ".*\.(ml|c|merlin|dune)$$" --neg --action "ISDIR or os.remove(_)"
-	python cmds.py find $(testdir) ".*\.(ml|c|merlin|cmxs|dune)$$" --neg --action "ISDIR or os.remove(_)"
-	python cmds.py find $(appdir) ".*\.(ml|c|merlin|dune)$$" --neg --action "ISDIR or os.remove(_)"
+	python cmds.py find $(srcdir) ".*\.(ml|c|merlin)$$|dune$$" --neg --action "ISDIR or os.remove(_)"
+	python cmds.py find $(testdir) ".*\.(ml|c|merlin|cmxs)$$|dune$$" --neg --action "ISDIR or os.remove(_)"
+	python cmds.py find $(appdir) ".*\.(ml|c|merlin)$$|dune$$" --neg --action "ISDIR or os.remove(_)"
