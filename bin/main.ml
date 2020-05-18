@@ -1,5 +1,1 @@
-open Dynjit.Ccall
-
-let _ =
-  main()
-
+let () = print_endline "Hello, World!"

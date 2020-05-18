@@ -22,6 +22,7 @@ external cPyErr_Occurred : unit -> pyo = "PyErr_Occurred" [@@noalloc]
 external cPyErr_ExceptionMatches : pyo -> b32 = "PyErr_ExceptionMatches" [@@noalloc]
 external cPyErr_GivenExceptionMatches : pyo -> pyo -> b32 = "PyErr_GivenExceptionMatches" [@@noalloc]
 
+
 external cPyEval_EvalCode : pyo -> pyo -> pyo -> pyo = "PyEval_EvalCode" [@@noalloc]
 external cPy_Initialize : unit -> unit = "Py_Initialize" [@@noalloc]
 external cPy_CompileString : string -> string -> start_sym -> pyo = "Py_CompileString" [@@noalloc]
@@ -52,7 +53,7 @@ module Py() = struct
       !_pyhelpers
 end
 
-let main() =
+let _ =
   let module Py = Py() in
   let _ = cPyErr_Print() in
   let c = cPy_CompileString "print('good')" "a.py" cPy_file_input in

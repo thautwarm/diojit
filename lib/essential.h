@@ -1,2 +1,0 @@
-int mkint(int);
-

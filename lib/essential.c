@@ -3,4 +3,3 @@
 int mkint(int i){
   return i >> 1;
 }
-

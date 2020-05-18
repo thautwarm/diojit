@@ -1,4 +1,4 @@
 (executable
- (public_name dynjit)
+ (public_name jit)
  (name main)
- (libraries dynjit))
+ (libraries jit))

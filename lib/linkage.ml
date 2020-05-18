@@ -3,7 +3,7 @@
    whose author is Stephen Dolan(mu@netsoc.tcd.ie, https://github.com/stedolan)
  *)
 type ('a, 'b) result = Ok of 'a | Error of 'b
-type plugin = ..
+type plugin
 
 exception Loaded of string * plugin
 
@@ -21,7 +21,8 @@ type error =
 let load s =
   let s =
     if Filename.check_suffix s ".cma" ||
-       Filename.check_suffix s ".cmo" then
+       Filename.check_suffix s ".cmo" ||
+       Filename.check_suffix s ".cmsx" then
       Dynlink.adapt_filename s
     else
       s in
