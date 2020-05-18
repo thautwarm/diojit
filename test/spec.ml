@@ -1,3 +1,4 @@
+module Core = Dynjit.Core
 let (raise_error, load) = Dynjit.Linkage.(raise_error, load)
 external id : 'a -> 'b = "%identity"
 

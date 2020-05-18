@@ -1,4 +1,0 @@
-(executable
- (public_name jit)
- (name main)
- (libraries jit))
