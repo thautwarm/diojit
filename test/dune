@@ -1,0 +1,5 @@
+(test
+ (name spec)
+ (libraries dynjit threads)
+ (ocamlc_flags (:standard -custom)) 
+ (flags :standard -cclib -lpython3.8))
