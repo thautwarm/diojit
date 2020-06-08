@@ -4,6 +4,8 @@ exception AccessingEmptyList
 
 let exp n = 1 + n lsl 2
 type 't darray = {mutable data: 't array; mutable len: int}
+let from_array xs = {data = xs; len = Array.length xs}
+
 let make n elt = {data=Array.make n elt; len = n}
 let len {len; _} = len
 let empty () : 'a darray = make 0 (Obj.magic 0)

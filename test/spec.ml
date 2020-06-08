@@ -1,6 +1,6 @@
-open Dynjit
+(* open Dynjit
 module Core = Core
-let (raise_error, load) = Linkage.(raise_error, load)
+(* let (raise_error, load) = Linkage.(raise_error, load)
 external id : 'a -> 'b = "%identity"
 
 let f =
@@ -8,7 +8,7 @@ let f =
     | Ok f -> let f : int -> string = id f in f
     | e -> raise_error e
 
-let _ = print_endline @@ f 1
+let _ = print_endline @@ f 1 *)
 
 let _ =
     let module TC = (val Infer.tcstate(Darray.empty())) in
@@ -65,4 +65,4 @@ let _ =
         | _ -> false
         end
     | _ -> false
-    end
+    end *)

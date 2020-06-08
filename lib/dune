@@ -1,6 +1,3 @@
 (library
  (name dynjit)
- (public_name dynjit)
- (libraries threads findlib.dynload)
- (foreign_stubs (language c) (names essential))
- (flags :standard -cclib -lpython3.8))
+ (public_name dynjit))
