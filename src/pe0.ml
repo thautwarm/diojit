@@ -21,7 +21,7 @@ type const =
 
 
 type repr = Var of var | Const of const
-type abs_value = S of const | D
+type abs_value = S of const | D of var
 
 type instr =
 | GotoIf : repr * label * label -> instr
@@ -116,6 +116,8 @@ let type_union : t -> t -> t = fun a b ->
     | x, y -> UnionT [x; y]
     
     
+let bool_t = NomT "bool"
+
 let rec type_of_const : const -> t = function
     | NoneL -> NoneT
     | UndefL -> BottomT
@@ -126,8 +128,10 @@ let rec type_of_const : const -> t = function
     | TupleL xs -> TupleT (List.map type_of_const xs)
     | InstrinsicL c -> IntrinsicT c
 
+exception NonStaticTypeCheck
 let rec type_less : t -> t -> bool = fun a b ->
     match a, b with
+    | TopT, _ -> raise NonStaticTypeCheck
     | _, TopT -> true
     | BottomT, _ -> true
     | UnionT xs, UnionT ys ->
@@ -135,6 +139,18 @@ let rec type_less : t -> t -> bool = fun a b ->
     | x, UnionT xs ->
         List.exists (type_less x) xs
     | _ -> false
+
+let flip f x y = f y x
+
+let rec sequence : 'a list list -> 'a list list =
+    function
+    | [g] -> flip List.map g (fun x -> [x])
+    | g1::gs ->
+        let tls = sequence gs in
+        List.concat @@
+        flip List.map tls @@ fun tl ->
+            flip List.map g1 @@ flip List.cons tl
+    | [] -> []
 
 let rec specialise_bb : basic_blocks -> label -> (pe_state, label) MState.state =
     fun blocks cur_lbl ->
@@ -251,11 +267,15 @@ and specialise_instrs : basic_blocks -> instr list -> (pe_state, instr list) MSt
         let bi, vi = Smap.find bound n2i, Smap.find var n2i in
         let vv = slots.(vi) in begin
         match vv.typ with
-        | TypeT ty ->
-            let test = S (BoolL (type_less ty vv.typ)) in
-            let slots' = Array.copy slots in
-            let _ = slots'.(bi) <- {typ = type_union slots.(bi).typ ty; value=test} in
-            put {pe_state with slots=slots'} >> get_tailm ()
+        | TypeT ty -> begin
+            try
+                let test = S (BoolL (type_less ty vv.typ)) in
+                let slots' = Array.copy slots in
+                let _ = slots'.(bi) <- {typ = type_union slots.(bi).typ bool_t; value=test} in
+                put {pe_state with slots=slots'} >> get_tailm ()
+            with NonStaticTypeCheck ->
+                get_tailm() >>= fun tl -> return @@ instr :: tl
+            end
         | _ ->
             get_tailm() >>= fun tl -> return @@ instr :: tl
         end
@@ -268,7 +288,7 @@ and specialise :  func_def (* current function *)
     -> func_def M_int.t (* all function pointers *)
     -> (label * instr list) list (* specialized body *)
     = fun { func_entry={args; kwargs; closure; other_bounds}; body } f_defs ->
-    let mk = List.map (fun (_, t) ->  {typ = t; value=D}) in
+    let mk = List.map (fun (var, t) ->  {typ = t; value=D var}) in
     let ns = args @ kwargs @ closure @ other_bounds in
     let n2i = List.mapi (fun i (x, _) -> (x, i)) ns in
     let states = Array.of_list @@ mk ns in

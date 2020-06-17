@@ -13,6 +13,7 @@ var Sset$Jit = require("./Sset.bs.js");
 var Caml_array = require("bs-platform/lib/js/caml_array.js");
 var Darray$Jit = require("./darray.bs.js");
 var Pervasives = require("bs-platform/lib/js/pervasives.js");
+var Caml_exceptions = require("bs-platform/lib/js/caml_exceptions.js");
 
 function scope_of(param) {
   return param[0];
@@ -227,6 +228,8 @@ function type_union(a, b) {
   }
 }
 
+var bool_t = /* NomT */Block.__(4, ["bool"]);
+
 function type_of_const(xs) {
   if (typeof xs === "number") {
     if (xs === /* NoneL */0) {
@@ -252,26 +255,25 @@ function type_of_const(xs) {
   }
 }
 
+var NonStaticTypeCheck = Caml_exceptions.create("Pe0-Jit.NonStaticTypeCheck");
+
 function type_less(a, b) {
-  var exit = 0;
-  if (typeof b === "number") {
-    if (b === 1) {
-      return true;
+  if (typeof a === "number") {
+    switch (a) {
+      case /* TopT */1 :
+          throw NonStaticTypeCheck;
+      case /* BottomT */2 :
+          return true;
+      default:
+        
     }
-    exit = 2;
-  } else {
-    exit = 2;
-  }
-  if (exit === 2) {
-    if (typeof a === "number") {
-      if (a === /* BottomT */2) {
-        return true;
-      }
-      
-    } else if (a.tag === /* UnionT */6) {
-      if (typeof b === "number") {
+  } else if (a.tag === /* UnionT */6) {
+    if (typeof b === "number") {
+      if (b !== /* TopT */1) {
         return false;
       }
+      
+    } else {
       if (b.tag !== /* UnionT */6) {
         return false;
       }
@@ -282,15 +284,46 @@ function type_less(a, b) {
                                 }), ys);
                   }), a[0]);
     }
-    
   }
-  if (typeof b === "number" || b.tag !== /* UnionT */6) {
-    return false;
-  } else {
+  if (typeof b === "number") {
+    if (b === /* TopT */1) {
+      return true;
+    } else {
+      return false;
+    }
+  } else if (b.tag === /* UnionT */6) {
     return List.exists((function (param) {
                   return type_less(a, param);
                 }), b[0]);
+  } else {
+    return false;
   }
+}
+
+function flip(f, x, y) {
+  return Curry._2(f, y, x);
+}
+
+function sequence(param) {
+  if (!param) {
+    return /* [] */0;
+  }
+  var gs = param[1];
+  var g = param[0];
+  if (!gs) {
+    return List.map((function (x) {
+                  return /* :: */[
+                          x,
+                          /* [] */0
+                        ];
+                }), g);
+  }
+  var tls = sequence(gs);
+  return List.concat(List.map((function (tl) {
+                    return List.map((function (param) {
+                                  return List.cons(param, tl);
+                                }), g);
+                  }), tls));
 }
 
 function specialise_bb(blocks, cur_lbl) {
@@ -435,7 +468,7 @@ function specialise_instrs(blocks, param) {
                         var i = Smap$Jit.find($$var$1, param.n2i);
                         var v1 = Caml_array.caml_array_get(param.slots, i);
                         var match = v1.value;
-                        if (match) {
+                        if (!match.tag) {
                           var match$1 = match[0];
                           if (typeof match$1 !== "number" && match$1.tag === /* BoolL */1) {
                             if (match$1[0]) {
@@ -513,7 +546,7 @@ function specialise_instrs(blocks, param) {
                         var ty = type_of_const($$const$1);
                         var i1 = Smap$Jit.find($$var$2, pe_state.n2i);
                         var v1 = Caml_array.caml_array_get(slots, i1);
-                        var v2_value = /* S */[$$const$1];
+                        var v2_value = /* S */Block.__(0, [$$const$1]);
                         var v2 = {
                           typ: ty,
                           value: v2_value
@@ -661,32 +694,52 @@ function specialise_instrs(blocks, param) {
                         var vv = Caml_array.caml_array_get(slots, vi);
                         var ty = vv.typ;
                         if (typeof ty !== "number" && ty.tag === /* TypeT */2) {
-                          var ty$1 = ty[0];
-                          var test = /* S */[/* BoolL */Block.__(1, [type_less(ty$1, vv.typ)])];
-                          var slots$prime = $$Array.copy(slots);
-                          Caml_array.caml_array_set(slots$prime, bi, {
-                                typ: type_union(Caml_array.caml_array_get(slots, bi).typ, ty$1),
-                                value: test
-                              });
-                          var s_n2i = pe_state.n2i;
-                          var s_i2f = pe_state.i2f;
-                          var s_reached = pe_state.reached;
-                          var s_bb_count = pe_state.bb_count;
-                          var s = {
-                            n2i: s_n2i,
-                            i2f: s_i2f,
-                            slots: slots$prime,
-                            reached: s_reached,
-                            bb_count: s_bb_count
-                          };
-                          return $great$great({
-                                      run_state: (function (param) {
-                                          return /* tuple */[
-                                                  undefined,
-                                                  s
-                                                ];
-                                        })
-                                    }, specialise_instrs(blocks, xs));
+                          try {
+                            var test = /* S */Block.__(0, [/* BoolL */Block.__(1, [type_less(ty[0], vv.typ)])]);
+                            var slots$prime = $$Array.copy(slots);
+                            Caml_array.caml_array_set(slots$prime, bi, {
+                                  typ: type_union(Caml_array.caml_array_get(slots, bi).typ, bool_t),
+                                  value: test
+                                });
+                            var s_n2i = pe_state.n2i;
+                            var s_i2f = pe_state.i2f;
+                            var s_reached = pe_state.reached;
+                            var s_bb_count = pe_state.bb_count;
+                            var s = {
+                              n2i: s_n2i,
+                              i2f: s_i2f,
+                              slots: slots$prime,
+                              reached: s_reached,
+                              bb_count: s_bb_count
+                            };
+                            return $great$great({
+                                        run_state: (function (param) {
+                                            return /* tuple */[
+                                                    undefined,
+                                                    s
+                                                  ];
+                                          })
+                                      }, specialise_instrs(blocks, xs));
+                          }
+                          catch (exn){
+                            if (exn === NonStaticTypeCheck) {
+                              return $great$great$eq(specialise_instrs(blocks, xs), (function (tl) {
+                                            var a = /* :: */[
+                                              instr,
+                                              tl
+                                            ];
+                                            return {
+                                                    run_state: (function (s) {
+                                                        return /* tuple */[
+                                                                a,
+                                                                s
+                                                              ];
+                                                      })
+                                                  };
+                                          }));
+                            }
+                            throw exn;
+                          }
                         }
                         return $great$great$eq(specialise_instrs(blocks, xs), (function (tl) {
                                       var a = /* :: */[
@@ -731,7 +784,7 @@ function specialise(param, f_defs) {
     return List.map((function (param) {
                   return {
                           typ: param[1],
-                          value: /* D */0
+                          value: /* D */Block.__(1, [param[0]])
                         };
                 }), param);
   };
@@ -774,8 +827,12 @@ exports.MState = MState;
 exports.M_state = M_state;
 exports.M_int = M_int;
 exports.type_union = type_union;
+exports.bool_t = bool_t;
 exports.type_of_const = type_of_const;
+exports.NonStaticTypeCheck = NonStaticTypeCheck;
 exports.type_less = type_less;
+exports.flip = flip;
+exports.sequence = sequence;
 exports.specialise_bb = specialise_bb;
 exports.specialise_instrs = specialise_instrs;
 exports.specialise = specialise;
