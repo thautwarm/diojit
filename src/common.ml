@@ -40,3 +40,5 @@ let rec sequence : 'a list list -> 'a list list =
     | [] -> []
 
 let identity = fun x -> x
+
+let const x = fun _ -> x

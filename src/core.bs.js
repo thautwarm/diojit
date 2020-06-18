@@ -21,8 +21,14 @@ var M_state = $$Map.Make({
 
 var M_int = $$Map.Make(Int$Jit);
 
+var entry_label = /* tuple */[
+  0,
+  "entry"
+];
+
 exports.scope_of = scope_of;
 exports.unwrap_scope = unwrap_scope;
 exports.M_state = M_state;
 exports.M_int = M_int;
+exports.entry_label = entry_label;
 /* M_state Not a pure module */

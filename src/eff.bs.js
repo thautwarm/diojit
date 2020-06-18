@@ -311,14 +311,6 @@ function MkSt(X) {
             String(v)
           ];
   };
-  var genvar = function (param) {
-    var v = it.var_count;
-    it.var_count = v + 1 | 0;
-    return /* tuple */[
-            it.scope_level,
-            String(v)
-          ];
-  };
   var union_types = function (param) {
     return Common$Jit.List.unwrap_seq(Curry._1(Common$Jit.$$Array.to_list, Curry._2(Common$Jit.$$Array.mapi, (function (i, param) {
                           var ts = param.typ;
@@ -405,7 +397,6 @@ function MkSt(X) {
           add_instr: add_instr,
           add_return_type: add_return_type,
           genlbl: genlbl,
-          genvar: genvar,
           union_types: union_types,
           create_block: create_block,
           add_config: add_config,
@@ -575,14 +566,6 @@ function CopySt(S) {
             String(v)
           ];
   };
-  var genvar = function (param) {
-    var v = it.var_count;
-    it.var_count = v + 1 | 0;
-    return /* tuple */[
-            it.scope_level,
-            String(v)
-          ];
-  };
   var union_types = function (param) {
     return Common$Jit.List.unwrap_seq(Curry._1(Common$Jit.$$Array.to_list, Curry._2(Common$Jit.$$Array.mapi, (function (i, param) {
                           var ts = param.typ;
@@ -669,7 +652,6 @@ function CopySt(S) {
           add_instr: add_instr,
           add_return_type: add_return_type,
           genlbl: genlbl,
-          genvar: genvar,
           union_types: union_types,
           create_block: create_block,
           add_config: add_config,

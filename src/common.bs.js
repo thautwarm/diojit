@@ -206,9 +206,14 @@ function identity(x) {
   return x;
 }
 
+function $$const(x, param) {
+  return x;
+}
+
 exports.List = List$1;
 exports.$$Array = $$Array$1;
 exports.flip = flip;
 exports.sequence = sequence;
 exports.identity = identity;
+exports.$$const = $$const;
 /* No side effect */

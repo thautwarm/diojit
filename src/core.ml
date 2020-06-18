@@ -86,7 +86,6 @@ module M_int = Map.Make(Int)
 type pe_state = {
     (* global states *)
     mutable out_bbs : (label * ir Darray.darray) M_state.t;
-    mutable var_count : int;
     mutable lbl_count : int;
     mutable ret: t;
 
@@ -115,3 +114,5 @@ and func_def = {
     func_entry : func_entry;
     body : basic_blocks
 }
+
+let entry_label = (0, "entry")

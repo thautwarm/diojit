@@ -4,11 +4,15 @@
 var Block = require("bs-platform/lib/js/block.js");
 var Curry = require("bs-platform/lib/js/curry.js");
 var Eff$Jit = require("./eff.bs.js");
+var Caml_obj = require("bs-platform/lib/js/caml_obj.js");
+var Core$Jit = require("./core.bs.js");
 var Smap$Jit = require("./smap.bs.js");
 var Caml_array = require("bs-platform/lib/js/caml_array.js");
 var Common$Jit = require("./common.bs.js");
+var Darray$Jit = require("./darray.bs.js");
 var Pervasives = require("bs-platform/lib/js/pervasives.js");
 var Caml_exceptions = require("bs-platform/lib/js/caml_exceptions.js");
+var Caml_builtin_exceptions = require("bs-platform/lib/js/caml_builtin_exceptions.js");
 
 var NonStaticTypeCheck = Caml_exceptions.create("Pe-Jit.NonStaticTypeCheck");
 
@@ -71,7 +75,19 @@ function specialise_bb(S, param) {
   var bbs = param[0];
   var match = Smap$Jit.find(jump_to, bbs);
   var suite = match.suite;
-  Curry._1(S.assign_vars, Smap$Jit.find(S.it.cur_lbl, match.phi));
+  var xs = Smap$Jit.find_opt(S.it.cur_lbl, match.phi);
+  if (xs !== undefined) {
+    Curry._1(S.assign_vars, xs);
+  } else if (!Caml_obj.caml_equal(S.it.cur_lbl, Core$Jit.entry_label)) {
+    throw [
+          Caml_builtin_exceptions.assert_failure,
+          /* tuple */[
+            "pe.ml",
+            29,
+            18
+          ]
+        ];
+  }
   var config_001 = Curry._1(Common$Jit.$$Array.copy, S.it.slots);
   var config = /* tuple */[
     jump_to,
@@ -233,9 +249,12 @@ function specialise_instrs(S, param) {
         case /* Assign */2 :
             var tl = param[1];
             var target = l[0];
-            var i = Smap$Jit.find(target, S.it.n2i);
             var from = Curry._1(S.repr_eval, l[1]);
-            Caml_array.caml_array_set(S.it.slots, i, from);
+            Curry._2(S.set_var, target, (function(from){
+                return function (param) {
+                  return Common$Jit.$$const(from, param);
+                }
+                }(from)));
             if (from.value.tag) {
               return /* :: */[
                       /* Ir_assign */Block.__(4, [
@@ -325,8 +344,47 @@ function specialise_instrs(S, param) {
   return go(param[1]);
 }
 
+function specialise(param, f_defs) {
+  var match = param.func_entry;
+  var mk = Curry._1(Common$Jit.List.map, (function (param) {
+          return {
+                  typ: param[1],
+                  value: /* D */Block.__(1, [param[0]])
+                };
+        }));
+  var ns = Pervasives.$at(match.args, Pervasives.$at(match.kwargs, Pervasives.$at(match.closure, match.other_bounds)));
+  var n2i = Curry._2(Common$Jit.List.mapi, (function (i, param) {
+          return /* tuple */[
+                  param[0],
+                  i
+                ];
+        }), ns);
+  var slots = Curry._1(Common$Jit.$$Array.of_list, Curry._1(mk, ns));
+  var init_state = {
+    out_bbs: Core$Jit.M_state.empty,
+    lbl_count: 0,
+    ret: /* BottomT */2,
+    slots: slots,
+    reached: Smap$Jit.empty,
+    cur_block: Darray$Jit.empty(undefined),
+    cur_lbl: Core$Jit.entry_label,
+    n2i: n2i,
+    i2f: f_defs,
+    scope_level: 0
+  };
+  var S = Eff$Jit.MkSt({
+        x: init_state
+      });
+  specialise_bb(S, /* tuple */[
+        param.body,
+        Core$Jit.entry_label
+      ]);
+  return S.it;
+}
+
 exports.NonStaticTypeCheck = NonStaticTypeCheck;
 exports.type_less = type_less;
 exports.specialise_bb = specialise_bb;
 exports.specialise_instrs = specialise_instrs;
+exports.specialise = specialise;
 /* Eff-Jit Not a pure module */

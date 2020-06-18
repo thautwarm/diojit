@@ -45,7 +45,7 @@ module type St = sig
     val add_instr : ir -> unit
     val add_return_type : t -> unit
     val genlbl : unit -> label
-    val genvar : unit -> var
+
     val union_types : unit -> (int * t list) list
     val create_block : label -> ir Darray.darray
     val add_config : (label * value array) -> (label * ir Darray.darray)
@@ -157,9 +157,6 @@ module MkSt(X : sig val x : pe_state end) : St = struct
     let genlbl () = 
         let v = it.lbl_count in
         it.lbl_count <- v + 1; (it.scope_level, string_of_int v)
-    let genvar () = 
-        let v = it.var_count in
-        it.var_count <- v + 1; (it.scope_level, string_of_int v)
 
     let union_types () =
             List.unwrap_seq @@

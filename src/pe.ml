@@ -23,7 +23,11 @@ let rec type_less : t -> t -> bool = fun a b ->
 let rec specialise_bb : (module St) -> basic_blocks * label -> label =
     fun (module S: St) (bbs, jump_to) ->
     let {suite; phi} = Smap.find jump_to bbs in
-    let _ = S.assign_vars @@ Smap.find S.it.cur_lbl phi in
+    let _ =
+        match Smap.find_opt S.it.cur_lbl phi with
+        | Some xs ->S.assign_vars xs
+        | None -> assert (S.it.cur_lbl = entry_label)
+    in
     let config = (jump_to, Array.copy S.it.slots) in
     match S.lookup_config config  with
     | Some (lbl, _) -> lbl
@@ -101,9 +105,8 @@ and specialise_instrs : (module St) -> basic_blocks * instr list -> ir list  =
         S.it.ret <- type_union value.typ S.it.ret;
         [Ir_return (Ir_s value)]
     | Assign(target, from)::tl ->
-        let i = Smap.find target S.it.n2i in
         let from = S.repr_eval from in
-        S.it.slots.(i) <- from;
+        S.set_var target (const from);
         begin match from with
         | {value=S _} -> go tl
         | _ -> Ir_assign(target, Ir_s from)::go tl
@@ -127,3 +130,29 @@ and specialise_instrs : (module St) -> basic_blocks * instr list -> ir list  =
         end
     | _ -> failwith "TODO"
     in go instrs
+
+
+and specialise : func_def (* current function *)
+    -> func_def M_int.t   (* all function pointers *)
+    -> pe_state           (* specialized body *)
+    = fun { func_entry={args; kwargs; closure; other_bounds}; body } f_defs ->
+    let mk = List.map (fun (var, t) ->  {typ = t; value=D var}) in
+    let ns = args @ kwargs @ closure @ other_bounds in
+    let n2i = List.mapi (fun i (x, _) -> (x, i)) ns in
+    let slots = Array.of_list @@ mk ns in
+    let init_state =
+        { out_bbs = M_state.empty
+        ; lbl_count = 0
+        ; ret = BottomT
+        ; reached = Smap.empty
+        ; slots = slots
+        ; cur_block = Darray.empty()
+        ; cur_lbl = entry_label
+        ; n2i = n2i
+        ; i2f = f_defs
+        ; scope_level = 0
+        }
+    in
+    let module S = MkSt(struct let x = init_state end) in
+    let _ = specialise_bb (module S: St) (body, entry_label) in
+    S.it
