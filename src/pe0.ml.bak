@@ -1,120 +1,8 @@
-type 'a scoped = int * 'a
-let scope_of : 'a scoped -> int = fun (a, _) -> a
-let unwrap_scope : 'a scoped -> 'a = fun (_, a) -> a
-
-type label = string scoped
-
-type var = string scoped
-type instrinsic = Make_closure 
-                | Make_cell
-                | Deref
-                | IsTypeOf
-type const =
-| NoneL
-| UndefL
-| IntL of int
-| BoolL of bool
-| FloatL of float
-| StrL of string (* becomes char array after prototyping *)
-| TupleL of const list
-| InstrinsicL of instrinsic
+open Common
+open Core
+open State_monad
 
 
-type repr = Var of var | Const of const
-type abs_value = S of const | D of var
-
-type instr =
-| GotoIf : repr * label * label -> instr
-| Goto   : label -> instr
-| Assign : var * repr -> instr
-| Return : repr -> instr
-| Call   : var option (* bound to *)*
-           repr (* func *) * repr (* args *) * repr (* kwargs *)
-           -> instr
-
-type basic_block = {
-    suite: instr list;
-    phi : (label, (var, var) Smap.smap) Smap.smap
-}
-
-type basic_blocks = (label, basic_block) Smap.smap
-
-module MState = struct
-    type ('s, 'a) state = {run_state : 's -> ('a * 's)}
-    let return a = {run_state = fun s -> (a, s)}
-    let (>>=) m k = {run_state = fun s -> let (a, s) = m.run_state s in (k a).run_state s}        
-    let (>>) m1 m2 = {run_state = fun s -> let (_, s) = m1.run_state s in m2.run_state s}
-    let get = {run_state = fun s -> (s, s)}
-    let gets f = {run_state = fun s -> (f s, s)}
-    let modify f = {run_state = fun s -> (), f s}
-    let put s = {run_state = fun _ -> (), s}
-    let forM_ ms k = List.fold_left (fun a b -> a >> (b >>= k)) (return ()) ms >> return ()
-    
-    let forM ms k = 
-        let f a b = a >>= k >>= fun a -> b >>= fun b -> return (a::b) in
-        List.fold_right f ms (return [])
-end
-
-
-type t =
-| ClosureT of t * int (* function number *)
-| TupleT of t list
-| TypeT of t
-| CellT of t
-| NomT of string
-| NoneT
-| RecordT of (string, t) Smap.smap
-| UnionT of t list
-| ObjectT of int (* object type number *)
-| IntrinsicT of instrinsic
-| TopT
-| BottomT
-
-type value = {typ: t; value: abs_value}
-and value_ref = int
-
-type config = label * value array
-module M_state = Map.Make(struct
-    type t = config
-    let compare = compare
-end)
-
-module M_int = Map.Make(Int)
-
-(* todo: to avoid infinite configutions, add a set of reached labels*)
-type pe_state = {
-    n2i : (var, int) Smap.smap;
-    i2f : func_def M_int.t;
-    
-    slots : value array;
-    reached : (label * instr Darray.darray) M_state.t;
-    bb_count : int ref;
-}
-
-and func_entry = {
-    args : (var, t) Smap.smap;
-    kwargs : (var, t) Smap.smap;
-    closure : (var, t) Smap.smap;
-
-    other_bounds : (var, t) Smap.smap; (* shall be all undefined *)
-}
-
-and func_def = {
-    func_entry : func_entry;
-    body : basic_blocks
-}
-
-let type_union : t -> t -> t = fun a b ->
-    match a, b with
-    | BottomT, BottomT -> failwith "type_union cannot be used on 2 undefined items."
-    | BottomT, a | a, BottomT -> a
-    | UnionT xs, UnionT ys ->
-        UnionT (List.sort_uniq compare @@ xs @ ys)
-    | UnionT xs, y | y, UnionT xs ->
-        UnionT (Sset.add y xs)
-    | x, y when x = y -> x
-    | x, y -> UnionT [x; y]
-    
     
 let bool_t = NomT "bool"
 
@@ -127,6 +15,7 @@ let rec type_of_const : const -> t = function
     | StrL _  -> NomT "string"
     | TupleL xs -> TupleT (List.map type_of_const xs)
     | InstrinsicL c -> IntrinsicT c
+    | TypeL t       -> TypeT t
 
 exception NonStaticTypeCheck
 let rec type_less : t -> t -> bool = fun a b ->
@@ -135,12 +24,17 @@ let rec type_less : t -> t -> bool = fun a b ->
     | _, TopT -> true
     | BottomT, _ -> true
     | UnionT xs, UnionT ys ->
-        List.for_all (fun x -> List.exists (type_less x) ys) xs
+
+        let xs = List.concat @@ List.map (fun x -> List.map (type_less x) ys) xs in
+        if List.for_all (fun x -> x) xs then
+            true
+        else if List.for_all (fun x -> not x) xs  then
+            false
+        else
+            raise NonStaticTypeCheck
     | x, UnionT xs ->
         List.exists (type_less x) xs
     | _ -> false
-
-let flip f x y = f y x
 
 let rec sequence : 'a list list -> 'a list list =
     function
@@ -152,16 +46,85 @@ let rec sequence : 'a list list -> 'a list list =
             flip List.map g1 @@ flip List.cons tl
     | [] -> []
 
+let gensym : int -> int ref -> var = fun scope_level count ->
+    let v = !count in
+    incr count; (scope_level, string_of_int v)
+
+let union_types : (pe_state, (int * t) list list) MState.state =
+    let open MState in
+    get >>= fun {slots; n2i; var_count; lbl_count; _} ->    
+        let unions = 
+            List.unwrap_seq @@
+            Array.to_list @@
+            Array.mapi
+            (fun i ->
+                function
+                | {typ = UnionT ts; _} -> Some (i, ts)
+                | _ -> None)
+            slots
+        in
+        let indices, tss = List.unzip unions in
+        let tss = sequence tss in
+        return @@ List.map (List.zip indices) tss
+        
+        (* let lbls = Array.init (List.length tss + 1) (fun _ -> gensym 0 var_count) in
+        
+        let n_union = List.length indices in
+        let instrs = Darray.empty() in
+        let all_states = List.mapi (fun branch_i ts ->
+            let slots =  Array.copy slots in
+            let conds = Array.make n_union (Obj.magic 0) in
+            List.iter2
+                (fun idx t ->
+                    let sym = gensym 0 var_count in
+                    begin
+                        conds.(idx) <- D sym;
+                        Darray.append instrs @@
+                            Call(
+                                Some sym,
+                                S (InstrinsicL IsTypeOf),
+                                [slots.(idx).value; S (TypeL t)],
+                                []
+                            );
+                        slots.(idx) <- {slots.(idx) with typ = t};
+                    end
+                ) indices ts;
+            let cond_var = gensym 0 var_count in
+            let _ = Darray.append
+                        instrs
+                        @@ Call(Some cond_var, S (InstrinsicL BoolOr), Array.to_list conds, []) in
+            let _ = Darray.append
+                        instrs
+                        @@ GotoIf(D cond_var, lbls.(branch_i), lbls.(branch_i + 1)) in
+            slots
+        ) tss
+        in failwith "" *)
+
+let create_bb_from_config
+    = fun conf k ->
+    let open MState in
+    get >>= fun {out_bbs; lbl_count; scope_level; _} ->
+    match M_state.find_opt conf !out_bbs with
+    | Some (lbl, _) -> return lbl
+    | None ->
+        let lbl = gensym scope_level lbl_count in
+        k lbl out_bbs
+
+
+let extend_m : 'a Darray.darray -> ('s, 'a list) MState.state -> ('s, unit) MState.state =
+    let open MState in
+    fun arr m -> m >>= fun xs -> return (List.iter (Darray.append arr) xs)
+        
 let rec specialise_bb : basic_blocks -> label -> (pe_state, label) MState.state =
     fun blocks cur_lbl ->
-    let {suite; phi} = Smap.find cur_lbl blocks in
     let open MState in
-    get >>= fun ({slots; n2i; reached; bb_count; _} as st) ->
+    get >>= fun ({slots; n2i; out_bbs; lbl_count; _} as st) ->
+    let {suite; phi} = Smap.find cur_lbl blocks in
     let slots' = Array.copy slots in
     let instrs = Darray.empty() in
     let prepare_phi : (var, var) Smap.smap -> unit =
         let iter_do (reg, from) =
-            let _ = Darray.append instrs (Assign (reg, Var from)) in
+            let _ = Darray.append instrs (Assign (reg, D from)) in
             let i_reg, i_from = Smap.find reg n2i, Smap.find from n2i in
             let v1 = slots'.(i_reg) in
             let v2 = slots.(i_from) in
@@ -172,23 +135,38 @@ let rec specialise_bb : basic_blocks -> label -> (pe_state, label) MState.state 
             then slots'.(i_reg) <- v2
             else
             slots'.(i_reg) <- {
-                typ = type_union v1.typ v2.typ;
+                typ=v2.typ;
                 value=v2.value
             }
         in List.iter iter_do
     in
     let _ = prepare_phi @@ Smap.find cur_lbl phi in
     let config = (cur_lbl, slots') in
-    match M_state.find_opt config reached with
-    | Some (lbl, _) -> return lbl
-    | None ->
-        let _ = incr bb_count in
-        let gen_lbl = (0, string_of_int !bb_count) in
-        let reached = M_state.add config (gen_lbl, instrs) reached in        
-        put {st with slots = slots'; reached = reached} >>= fun () ->
-        (* TODO: union split here *)
-        let _ = specialise_instrs blocks suite in
-        return gen_lbl
+    create_bb_from_config config @@ fun gen_lbl out_bbs ->
+        let _ = out_bbs := M_state.add config (gen_lbl, instrs) !out_bbs in
+        put {st with slots = slots; out_bbs = out_bbs; reached = Sset.add cur_lbl st.reached}
+        >> union_types
+        >>= function
+        | [] -> (* no union split, avoid generating redundant labels *) 
+            extend_m instrs (specialise_instrs blocks suite) >> return gen_lbl
+        | branches -> get
+        >>= fun ({slots; reached; scope_level; _} as pe_state) ->
+        let cases =
+            flip List.map branches @@ fun branch ->
+            let slots' = Array.copy slots in
+            let checks =
+                flip List.map branch @@ fun (slot_idx, t) ->
+                    let slot = slots.(slot_idx) in
+                    slots'.(slot_idx) <- {slot with typ = t};
+                    (slot.value, t)
+            in
+            let gen_branch_lbl = gensym scope_level lbl_count in
+            let new_instrs = Darray.empty() in
+            let _ = out_bbs := M_state.add config (gen_branch_lbl, new_instrs) !out_bbs in
+            let m = extend_m new_instrs (specialise_instrs blocks suite) in
+            ignore (m.run_state {pe_state with slots=slots'});
+            (checks, gen_branch_lbl)
+        in Darray.append instrs (TypeSwitch cases); return gen_lbl
     
 and specialise_instrs : basic_blocks -> instr list -> (pe_state, instr list) MState.state =
     let open MState in
@@ -262,7 +240,7 @@ and specialise_instrs : basic_blocks -> instr list -> (pe_state, instr list) MSt
             put {pe_state with slots = slots'} >>
             (get_tailm() >>= fun tl -> return @@ instr::tl)
         
-    | Call(Some bound, Const (InstrinsicL IsTypeOf), (Var var), Const UndefL) ->
+    | Call(Some bound, Const (InstrinsicL IsTypeOf), [r1, r2], []) ->
         get >>= fun ({slots; n2i;_} as pe_state) ->
         let bi, vi = Smap.find bound n2i, Smap.find var n2i in
         let vv = slots.(vi) in begin
@@ -292,7 +270,7 @@ and specialise :  func_def (* current function *)
     let ns = args @ kwargs @ closure @ other_bounds in
     let n2i = List.mapi (fun i (x, _) -> (x, i)) ns in
     let states = Array.of_list @@ mk ns in
-    let init_state = {slots = states ; n2i = n2i; reached = M_state.empty; i2f = f_defs; bb_count = ref 0} in
+    let init_state = {slots = states ; n2i = n2i; reached = M_state.empty; i2f = f_defs; lbl_count = ref 0; var_count = ref 0} in
     let m = specialise_bb body (0, "entry") in
     let (_, {reached; _}) = m.run_state init_state in 
     List.map
