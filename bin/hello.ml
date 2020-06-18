@@ -1,4 +1,3 @@
-open Dynjit.Common
+open Dynjit.Pe
 let () =
-  flip List.iter [1; 2] @@ print_int;
-  print_endline "a"
+  flip List.iter [1; 2] @@ print_int
