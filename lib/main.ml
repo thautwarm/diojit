@@ -1,5 +1,5 @@
-open Dynjit.Parser
-open Dynjit.Lexer
+open Parser
+open Lexer
 open Printf
 open Lexing
 
@@ -12,9 +12,9 @@ let run_parser lexbuf =
   try
     prog read lexbuf
   with
-  | Error ->
+  | Error as e ->
     fprintf stderr "%a: syntax error\n" print_position lexbuf;
-    exit @@ -1
+    raise e
 
 let parse() =
   let buf = Lexing.from_channel stdin in
