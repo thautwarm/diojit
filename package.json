@@ -1,22 +1,29 @@
 {
   "name": "dynjit",
   "version": "0.1.0",
-  "scripts": {
-    "build": "bsb -make-world",
-    "start": "bsb -make-world -w",
-    "clean": "bsb -clean-world"
-  },
-  "keywords": [
-    "BuckleScript"
-  ],
-  "author": "thautwarm",
+  "description": "JIT compiler",
   "license": "MIT",
-
-  "test": "esy x hello",
+  "esy": {
+    "build": "dune build -p #{self.name}",
+    "release": {
+      "bin": "hello",
+      "includePackages": [
+        "root",
+        "@opam/camomile"
+      ]
+    }
+  },
+  "scripts": {
+    "test": "esy x hello"
+  },
   "dependencies": {
+    "@opam/dune": "*",
+    "@opam/lambda-term": "*",
+    "@opam/lwt": "^4.0.0",
     "ocaml": "~4.6.0"
   },
   "devDependencies": {
-    "bs-platform": "^7.3.2"
+    "@opam/merlin": "^3.0.3",
+    "ocaml": "~4.6.0"
   }
 }

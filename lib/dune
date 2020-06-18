@@ -1,0 +1,4 @@
+(library
+  (name dynjit)
+  (public_name dynjit)
+  (libraries lambda-term lwt))
