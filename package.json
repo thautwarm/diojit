@@ -1,5 +1,5 @@
 {
-  "name": "jit",
+  "name": "dynjit",
   "version": "0.1.0",
   "scripts": {
     "build": "bsb -make-world",
@@ -9,7 +9,7 @@
   "keywords": [
     "BuckleScript"
   ],
-  "author": "",
+  "author": "thautwarm",
   "license": "MIT",
 
   "test": "esy x hello",
