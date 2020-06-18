@@ -38,3 +38,5 @@ let rec sequence : 'a list list -> 'a list list =
         flip List.map tls @@ fun tl ->
             flip List.map g1 @@ flip List.cons tl
     | [] -> []
+
+let identity = fun x -> x

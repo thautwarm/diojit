@@ -39,18 +39,33 @@ and t =
 | BottomT
 
 type repr = S of const | D of var
+type value = {typ: t; value: repr}
 
 type instr =
 | GotoIf : repr * label * label -> instr
 | Goto   : label -> instr
 | Assign : var * repr -> instr
 | Return : repr -> instr
-| Call   : var option (* bound to *)*
-           repr (* func *) * repr list (* args *) * repr list (* kwargs *)
+| Call   : var option (* bound to *) *
+           repr (* func *) *
+           repr list (* args *) *
+           (string * repr) list (* kwargs *)
            -> instr
-(* generated only *)
-| TypeSwitch : ((repr * t) list * label) list -> instr
-| Label : label -> instr
+
+type ir_expr =
+| Ir_s of value
+| Ir_call of ir_expr * ir_expr list * (string * ir_expr) list
+
+type ir =
+| Ir_switch     of ir_expr * (const * ir) list (* todo: default branch? *)
+| Ir_if         of ir_expr * ir * ir
+| Ir_gotoif     of ir_expr * label * label
+| Ir_goto       of label 
+| Ir_assign     of var * ir_expr
+| Ir_return     of ir_expr
+| Ir_label      of label
+| Ir_block      of ir list
+| Ir_unreachable
 
 type basic_block = {
     suite: instr list;
@@ -58,10 +73,6 @@ type basic_block = {
 }
 
 type basic_blocks = (label, basic_block) Smap.smap
-
-
-type value = {typ: t; value: repr}
-and value_ref = int
 
 type config = label * value array
 module M_state = Map.Make(struct
@@ -74,7 +85,7 @@ module M_int = Map.Make(Int)
 (* todo: to avoid infinite configutions, add a set of reached labels*)
 type pe_state = {
     (* global states *)
-    mutable out_bbs : (label * instr Darray.darray) M_state.t;
+    mutable out_bbs : (label * ir Darray.darray) M_state.t;
     mutable var_count : int;
     mutable lbl_count : int;
     mutable ret: t;
@@ -82,7 +93,7 @@ type pe_state = {
     (* local states *)
     mutable slots : value array;
     mutable reached : label Sset.sset;
-    mutable cur_block : instr Darray.darray;
+    mutable cur_block : ir Darray.darray;
     mutable cur_lbl : label;
     
     (* immutable info *)

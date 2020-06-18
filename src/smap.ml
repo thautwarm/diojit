@@ -38,3 +38,7 @@ let is_empty xs = (xs = [])
 
 let len = List.length
 
+let rec map f =
+    function
+    | [] -> []
+    | (k, v) :: tl -> (k, f v):: map f tl

@@ -40,24 +40,33 @@ module type St = sig
     val has_reached : label -> bool
     val with_local : (unit -> 'b) -> 'b
     val dynamicalize_all : unit -> unit
-    val narrow : var -> t -> repr
-    val enter_block: (label * instr Darray.darray) -> unit
-    val add_instr : instr -> unit
+    val set_type : (var * t) -> unit
+    val enter_block: (label * ir Darray.darray) -> unit
+    val add_instr : ir -> unit
     val add_return_type : t -> unit
     val genlbl : unit -> label
     val genvar : unit -> var
-    val union_types : unit -> (int * t) list list
-    val create_block : label -> instr Darray.darray
-    val add_config : (label * value array) -> (label * instr Darray.darray) -> unit
+    val union_types : unit -> (int * t list) list
+    val create_block : label -> ir Darray.darray
+    val add_config : (label * value array) -> (label * ir Darray.darray)
     val dynamic_values : value array
     val make_config : unit -> (label * value array)
-    val lookup_config : (label * value array) ->  (label * instr Darray.darray) option
+    val lookup_config : (label * value array) ->  (label * ir Darray.darray) option
+    val repr_eval : repr -> value
 
+    val set_var : var -> (value -> value) -> unit
 end
 
 module MkSt(X : sig val x : pe_state end) : St = struct
-    let it = X.x
     module X = X
+    let it = X.x
+    
+    let repr_eval = function
+        | S c as a -> {value=a; typ=type_of_const c}
+        | D var ->
+            let i = Smap.find var it.n2i in
+            it.slots.(i)
+
     let assign_vars vs =
         let slots' = Array.copy it.slots in
         flip List.iter vs @@ fun (v1, v2) ->
@@ -68,14 +77,16 @@ module MkSt(X : sig val x : pe_state end) : St = struct
             | {value = S _; _} ->
                 it.slots.(i1) <- s2
             | _ ->
-                Darray.append it.cur_block (Assign(v1, D v2));
+                Darray.append it.cur_block (Ir_assign(v1, Ir_s s2));
                 it.slots.(i1) <- {s2 with value = D v1}
                                 
     let assign target =
         let i_target = Smap.find target it.n2i in
         let s_target = it.slots.(i_target) in
         match s_target.typ with
-        | TopT -> fun repr -> Darray.append it.cur_block (Assign(target, repr))
+        | TopT -> fun repr ->
+            let value = repr_eval repr in
+            Darray.append it.cur_block @@ Ir_assign(target, Ir_s value)
         | _ ->
         function
         | D var ->
@@ -87,7 +98,8 @@ module MkSt(X : sig val x : pe_state end) : St = struct
             | {value = S _; _} ->
                 it.slots.(i_target) <- s
             | _ ->
-                Darray.append it.cur_block (Assign(target, D var));
+                Darray.append it.cur_block @@ 
+                    Ir_assign(target, Ir_s s);
                 it.slots.(i_target) <- {s with value = D target}
             end
         | S lit as static ->
@@ -122,16 +134,20 @@ module MkSt(X : sig val x : pe_state end) : St = struct
             | {typ = BottomT; _} -> failwith "TODO"
             | {typ = TopT; _} | {typ = UnionT _; _} -> ()
             | {typ; value} ->
-                add_instr @@ Call(
-                    None,
-                    S (InstrinsicL Upcast),
-                    [S(TypeL typ); value],
-                    []
+                let func = repr_eval @@ S (InstrinsicL Upcast) in
+                let args = List.map repr_eval [S(TypeL typ); value] in
+                add_instr @@ Ir_assign(
+                    n, 
+                    Ir_call(
+                        Ir_s func,
+                        List.map (fun x -> Ir_s x) args,
+                        []
+                    )
                 )
         ) it.n2i
 
 
-    let enter_block label block =
+    let enter_block (label, block) =
         it.cur_block <- block;
         it.cur_lbl <- label
     
@@ -145,8 +161,7 @@ module MkSt(X : sig val x : pe_state end) : St = struct
         let v = it.var_count in
         it.var_count <- v + 1; (it.scope_level, string_of_int v)
 
-    let union_types () : (int * t) list list =
-        let unions = 
+    let union_types () =
             List.unwrap_seq @@
             Array.to_list @@
             Array.mapi
@@ -155,36 +170,20 @@ module MkSt(X : sig val x : pe_state end) : St = struct
                 | {typ = UnionT ts; _} -> Some (i, ts)
                 | _ -> None)
             it.slots
-        in
-        let indices, tss = List.unzip unions in
-        let tss = sequence tss in
-        List.map (List.zip indices) tss
+        
         
     let create_block lbl =
         let config = lbl, Array.copy it.slots in
         let new_lbl = genlbl() in
-        let block = Darray.from_array [|Label new_lbl|] in
+        let block = Darray.from_array [|Ir_label new_lbl|] in
         it.out_bbs <- M_state.add config (new_lbl, block) it.out_bbs;
         block
     
-    let narrow var t =
-        let i = Smap.find var it.n2i in
-        match it.slots.(i) with
-        | {typ = t'} when t' = t -> S (BoolL true)
-        | {value = S _} -> failwith "TODO"
-        | a -> 
-            it.slots.(i) <- {a with typ = t};
-            let check_var = genvar() in
-            add_instr @@ Call (
-                Some check_var,
-                S (InstrinsicL Downcast),
-                [S(TypeL t); D var],
-                []
-            );
-            D check_var
-    
-    let add_config config labelled_block =
-        it.out_bbs <- M_state.add config labelled_block it.out_bbs
+    let add_config config =
+        let label = genlbl() in
+        let block = Darray.empty() in
+        it.out_bbs <- M_state.add config (label, block) it.out_bbs;
+        label, block
 
     let dynamic_values =
         let revmap = List.map (fun (a, b) -> b, a) it.n2i in
@@ -194,6 +193,16 @@ module MkSt(X : sig val x : pe_state end) : St = struct
     let make_config () = it.cur_lbl, Array.copy (it.slots)
 
     let lookup_config config = M_state.find_opt config it.out_bbs
+    
+    let set_type (var, t) =
+        let i = Smap.find var it.n2i in
+        it.slots.(i) <- {it.slots.(i) with typ = t}
+
+    
+    let set_var var lens =
+        let i = Smap.find var it.n2i in
+        it.slots.(i) <- lens @@ it.slots.(i)
+
 end
 
 module CopySt(S: St) = MkSt(S.X)

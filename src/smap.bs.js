@@ -69,6 +69,20 @@ function is_empty(xs) {
   return xs === /* [] */0;
 }
 
+function map(f, param) {
+  if (!param) {
+    return /* [] */0;
+  }
+  var match = param[0];
+  return /* :: */[
+          /* tuple */[
+            match[0],
+            Curry._1(f, match[1])
+          ],
+          map(f, param[1])
+        ];
+}
+
 var find = List.assoc;
 
 var mem = List.mem_assoc;
@@ -90,4 +104,5 @@ exports.diffkeys = diffkeys;
 exports.intersect = intersect;
 exports.is_empty = is_empty;
 exports.len = len;
+exports.map = map;
 /* No side effect */

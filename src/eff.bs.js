@@ -156,20 +156,29 @@ function type_of_const(xs) {
 
 function MkSt(X) {
   var it = X.x;
+  var repr_eval = function (a) {
+    if (!a.tag) {
+      return {
+              typ: type_of_const(a[0]),
+              value: a
+            };
+    }
+    var i = Smap$Jit.find(a[0], it.n2i);
+    return Caml_array.caml_array_get(it.slots, i);
+  };
   var assign_vars = function (vs) {
     var slots$prime = Curry._1(Common$Jit.$$Array.copy, it.slots);
     return Common$Jit.flip(Common$Jit.List.iter, vs, (function (param) {
-                  var v2 = param[1];
                   var v1 = param[0];
                   var i1 = Smap$Jit.find(v1, it.n2i);
-                  var i2 = Smap$Jit.find(v2, it.n2i);
+                  var i2 = Smap$Jit.find(param[1], it.n2i);
                   var s2 = Caml_array.caml_array_get(slots$prime, i2);
                   if (!s2.value.tag) {
                     return Caml_array.caml_array_set(it.slots, i1, s2);
                   }
-                  Darray$Jit.append(it.cur_block, /* Assign */Block.__(2, [
+                  Darray$Jit.append(it.cur_block, /* Ir_assign */Block.__(4, [
                           v1,
-                          /* D */Block.__(1, [v2])
+                          /* Ir_s */Block.__(0, [s2])
                         ]));
                   return Caml_array.caml_array_set(it.slots, i1, {
                               typ: s2.typ,
@@ -183,9 +192,10 @@ function MkSt(X) {
     var match = s_target.typ;
     if (typeof match === "number" && match === 1) {
       return (function (repr) {
-          return Darray$Jit.append(it.cur_block, /* Assign */Block.__(2, [
+          var value = repr_eval(repr);
+          return Darray$Jit.append(it.cur_block, /* Ir_assign */Block.__(4, [
                         target,
-                        repr
+                        /* Ir_s */Block.__(0, [value])
                       ]));
         });
     }
@@ -206,9 +216,9 @@ function MkSt(X) {
         if (!s.value.tag) {
           return Caml_array.caml_array_set(it.slots, i_target, s);
         }
-        Darray$Jit.append(it.cur_block, /* Assign */Block.__(2, [
+        Darray$Jit.append(it.cur_block, /* Ir_assign */Block.__(4, [
                 target,
-                /* D */Block.__(1, [$$var$1])
+                /* Ir_s */Block.__(0, [s])
               ]));
         return Caml_array.caml_array_set(it.slots, i_target, {
                     typ: s.typ,
@@ -243,10 +253,11 @@ function MkSt(X) {
   var dynamicalize_all = function (param) {
     return Curry._2(Common$Jit.List.iter, (function (param) {
                   var i = param[1];
+                  var n = param[0];
                   var v = Caml_array.caml_array_get(it.slots, i);
                   Caml_array.caml_array_set(it.slots, i, {
                         typ: /* TopT */1,
-                        value: /* D */Block.__(1, [param[0]])
+                        value: /* D */Block.__(1, [n])
                       });
                   var typ = v.typ;
                   if (typeof typ === "number") {
@@ -261,23 +272,31 @@ function MkSt(X) {
                   } else if (typ.tag === /* UnionT */6) {
                     return ;
                   }
-                  return Darray$Jit.append(it.cur_block, /* Call */Block.__(4, [
-                                undefined,
-                                /* S */Block.__(0, [/* InstrinsicL */Block.__(5, [/* Upcast */6])]),
-                                /* :: */[
-                                  /* S */Block.__(0, [/* TypeL */Block.__(6, [typ])]),
-                                  /* :: */[
-                                    v.value,
-                                    /* [] */0
-                                  ]
-                                ],
-                                /* [] */0
-                              ]));
+                  var func = repr_eval(/* S */Block.__(0, [/* InstrinsicL */Block.__(5, [/* Upcast */6])]));
+                  var args = Curry._2(Common$Jit.List.map, repr_eval, /* :: */[
+                        /* S */Block.__(0, [/* TypeL */Block.__(6, [typ])]),
+                        /* :: */[
+                          v.value,
+                          /* [] */0
+                        ]
+                      ]);
+                  var instr_001 = /* Ir_call */Block.__(1, [
+                      /* Ir_s */Block.__(0, [func]),
+                      Curry._2(Common$Jit.List.map, (function (x) {
+                              return /* Ir_s */Block.__(0, [x]);
+                            }), args),
+                      /* [] */0
+                    ]);
+                  var instr = /* Ir_assign */Block.__(4, [
+                      n,
+                      instr_001
+                    ]);
+                  return Darray$Jit.append(it.cur_block, instr);
                 }), it.n2i);
   };
-  var enter_block = function (label, block) {
-    it.cur_block = block;
-    it.cur_lbl = label;
+  var enter_block = function (param) {
+    it.cur_block = param[1];
+    it.cur_lbl = param[0];
     
   };
   var add_return_type = function (t) {
@@ -301,23 +320,17 @@ function MkSt(X) {
           ];
   };
   var union_types = function (param) {
-    var unions = Common$Jit.List.unwrap_seq(Curry._1(Common$Jit.$$Array.to_list, Curry._2(Common$Jit.$$Array.mapi, (function (i, param) {
-                    var ts = param.typ;
-                    if (typeof ts === "number" || ts.tag !== /* UnionT */6) {
-                      return ;
-                    } else {
-                      return /* tuple */[
-                              i,
-                              ts[0]
-                            ];
-                    }
-                  }), it.slots)));
-    var match = Common$Jit.List.unzip(unions);
-    var indices = match[0];
-    var tss = Common$Jit.sequence(match[1]);
-    return Curry._2(Common$Jit.List.map, (function (param) {
-                  return Common$Jit.List.zip(indices, param);
-                }), tss);
+    return Common$Jit.List.unwrap_seq(Curry._1(Common$Jit.$$Array.to_list, Curry._2(Common$Jit.$$Array.mapi, (function (i, param) {
+                          var ts = param.typ;
+                          if (typeof ts === "number" || ts.tag !== /* UnionT */6) {
+                            return ;
+                          } else {
+                            return /* tuple */[
+                                    i,
+                                    ts[0]
+                                  ];
+                          }
+                        }), it.slots)));
   };
   var create_block = function (lbl) {
     var config_001 = Curry._1(Common$Jit.$$Array.copy, it.slots);
@@ -326,44 +339,24 @@ function MkSt(X) {
       config_001
     ];
     var new_lbl = genlbl(undefined);
-    var block = Darray$Jit.from_array([/* Label */Block.__(6, [new_lbl])]);
+    var block = Darray$Jit.from_array([/* Ir_label */Block.__(6, [new_lbl])]);
     it.out_bbs = Curry._3(Core$Jit.M_state.add, config, /* tuple */[
           new_lbl,
           block
         ], it.out_bbs);
     return block;
   };
-  var narrow = function ($$var, t) {
-    var i = Smap$Jit.find($$var, it.n2i);
-    var a = Caml_array.caml_array_get(it.slots, i);
-    if (Caml_obj.caml_equal(a.typ, t)) {
-      return /* S */Block.__(0, [/* BoolL */Block.__(1, [true])]);
-    }
-    if (!a.value.tag) {
-      return Pervasives.failwith("TODO");
-    }
-    Caml_array.caml_array_set(it.slots, i, {
-          typ: t,
-          value: a.value
-        });
-    var check_var = genvar(undefined);
-    Darray$Jit.append(it.cur_block, /* Call */Block.__(4, [
-            check_var,
-            /* S */Block.__(0, [/* InstrinsicL */Block.__(5, [/* Downcast */7])]),
-            /* :: */[
-              /* S */Block.__(0, [/* TypeL */Block.__(6, [t])]),
-              /* :: */[
-                /* D */Block.__(1, [$$var]),
-                /* [] */0
-              ]
-            ],
-            /* [] */0
-          ]));
-    return /* D */Block.__(1, [check_var]);
-  };
-  var add_config = function (config, labelled_block) {
-    it.out_bbs = Curry._3(Core$Jit.M_state.add, config, labelled_block, it.out_bbs);
-    
+  var add_config = function (config) {
+    var label = genlbl(undefined);
+    var block = Darray$Jit.empty(undefined);
+    it.out_bbs = Curry._3(Core$Jit.M_state.add, config, /* tuple */[
+          label,
+          block
+        ], it.out_bbs);
+    return /* tuple */[
+            label,
+            block
+          ];
   };
   var revmap = Curry._2(Common$Jit.List.map, (function (param) {
           return /* tuple */[
@@ -386,6 +379,18 @@ function MkSt(X) {
   var lookup_config = function (config) {
     return Curry._2(Core$Jit.M_state.find_opt, config, it.out_bbs);
   };
+  var set_type = function (param) {
+    var i = Smap$Jit.find(param[0], it.n2i);
+    var init = Caml_array.caml_array_get(it.slots, i);
+    return Caml_array.caml_array_set(it.slots, i, {
+                typ: param[1],
+                value: init.value
+              });
+  };
+  var set_var = function ($$var, lens) {
+    var i = Smap$Jit.find($$var, it.n2i);
+    return Caml_array.caml_array_set(it.slots, i, Curry._1(lens, Caml_array.caml_array_get(it.slots, i)));
+  };
   return {
           X: X,
           it: it,
@@ -395,7 +400,7 @@ function MkSt(X) {
           has_reached: has_reached,
           with_local: with_local,
           dynamicalize_all: dynamicalize_all,
-          narrow: narrow,
+          set_type: set_type,
           enter_block: enter_block,
           add_instr: add_instr,
           add_return_type: add_return_type,
@@ -406,27 +411,38 @@ function MkSt(X) {
           add_config: add_config,
           dynamic_values: dynamic_values,
           make_config: make_config,
-          lookup_config: lookup_config
+          lookup_config: lookup_config,
+          repr_eval: repr_eval,
+          set_var: set_var
         };
 }
 
 function CopySt(S) {
   var X = S.X;
   var it = X.x;
+  var repr_eval = function (a) {
+    if (!a.tag) {
+      return {
+              typ: type_of_const(a[0]),
+              value: a
+            };
+    }
+    var i = Smap$Jit.find(a[0], it.n2i);
+    return Caml_array.caml_array_get(it.slots, i);
+  };
   var assign_vars = function (vs) {
     var slots$prime = Curry._1(Common$Jit.$$Array.copy, it.slots);
     return Common$Jit.flip(Common$Jit.List.iter, vs, (function (param) {
-                  var v2 = param[1];
                   var v1 = param[0];
                   var i1 = Smap$Jit.find(v1, it.n2i);
-                  var i2 = Smap$Jit.find(v2, it.n2i);
+                  var i2 = Smap$Jit.find(param[1], it.n2i);
                   var s2 = Caml_array.caml_array_get(slots$prime, i2);
                   if (!s2.value.tag) {
                     return Caml_array.caml_array_set(it.slots, i1, s2);
                   }
-                  Darray$Jit.append(it.cur_block, /* Assign */Block.__(2, [
+                  Darray$Jit.append(it.cur_block, /* Ir_assign */Block.__(4, [
                           v1,
-                          /* D */Block.__(1, [v2])
+                          /* Ir_s */Block.__(0, [s2])
                         ]));
                   return Caml_array.caml_array_set(it.slots, i1, {
                               typ: s2.typ,
@@ -440,9 +456,10 @@ function CopySt(S) {
     var match = s_target.typ;
     if (typeof match === "number" && match === 1) {
       return (function (repr) {
-          return Darray$Jit.append(it.cur_block, /* Assign */Block.__(2, [
+          var value = repr_eval(repr);
+          return Darray$Jit.append(it.cur_block, /* Ir_assign */Block.__(4, [
                         target,
-                        repr
+                        /* Ir_s */Block.__(0, [value])
                       ]));
         });
     }
@@ -463,9 +480,9 @@ function CopySt(S) {
         if (!s.value.tag) {
           return Caml_array.caml_array_set(it.slots, i_target, s);
         }
-        Darray$Jit.append(it.cur_block, /* Assign */Block.__(2, [
+        Darray$Jit.append(it.cur_block, /* Ir_assign */Block.__(4, [
                 target,
-                /* D */Block.__(1, [$$var$1])
+                /* Ir_s */Block.__(0, [s])
               ]));
         return Caml_array.caml_array_set(it.slots, i_target, {
                     typ: s.typ,
@@ -500,10 +517,11 @@ function CopySt(S) {
   var dynamicalize_all = function (param) {
     return Curry._2(Common$Jit.List.iter, (function (param) {
                   var i = param[1];
+                  var n = param[0];
                   var v = Caml_array.caml_array_get(it.slots, i);
                   Caml_array.caml_array_set(it.slots, i, {
                         typ: /* TopT */1,
-                        value: /* D */Block.__(1, [param[0]])
+                        value: /* D */Block.__(1, [n])
                       });
                   var typ = v.typ;
                   if (typeof typ === "number") {
@@ -518,23 +536,31 @@ function CopySt(S) {
                   } else if (typ.tag === /* UnionT */6) {
                     return ;
                   }
-                  return Darray$Jit.append(it.cur_block, /* Call */Block.__(4, [
-                                undefined,
-                                /* S */Block.__(0, [/* InstrinsicL */Block.__(5, [/* Upcast */6])]),
-                                /* :: */[
-                                  /* S */Block.__(0, [/* TypeL */Block.__(6, [typ])]),
-                                  /* :: */[
-                                    v.value,
-                                    /* [] */0
-                                  ]
-                                ],
-                                /* [] */0
-                              ]));
+                  var func = repr_eval(/* S */Block.__(0, [/* InstrinsicL */Block.__(5, [/* Upcast */6])]));
+                  var args = Curry._2(Common$Jit.List.map, repr_eval, /* :: */[
+                        /* S */Block.__(0, [/* TypeL */Block.__(6, [typ])]),
+                        /* :: */[
+                          v.value,
+                          /* [] */0
+                        ]
+                      ]);
+                  var instr_001 = /* Ir_call */Block.__(1, [
+                      /* Ir_s */Block.__(0, [func]),
+                      Curry._2(Common$Jit.List.map, (function (x) {
+                              return /* Ir_s */Block.__(0, [x]);
+                            }), args),
+                      /* [] */0
+                    ]);
+                  var instr = /* Ir_assign */Block.__(4, [
+                      n,
+                      instr_001
+                    ]);
+                  return Darray$Jit.append(it.cur_block, instr);
                 }), it.n2i);
   };
-  var enter_block = function (label, block) {
-    it.cur_block = block;
-    it.cur_lbl = label;
+  var enter_block = function (param) {
+    it.cur_block = param[1];
+    it.cur_lbl = param[0];
     
   };
   var add_return_type = function (t) {
@@ -558,23 +584,17 @@ function CopySt(S) {
           ];
   };
   var union_types = function (param) {
-    var unions = Common$Jit.List.unwrap_seq(Curry._1(Common$Jit.$$Array.to_list, Curry._2(Common$Jit.$$Array.mapi, (function (i, param) {
-                    var ts = param.typ;
-                    if (typeof ts === "number" || ts.tag !== /* UnionT */6) {
-                      return ;
-                    } else {
-                      return /* tuple */[
-                              i,
-                              ts[0]
-                            ];
-                    }
-                  }), it.slots)));
-    var match = Common$Jit.List.unzip(unions);
-    var indices = match[0];
-    var tss = Common$Jit.sequence(match[1]);
-    return Curry._2(Common$Jit.List.map, (function (param) {
-                  return Common$Jit.List.zip(indices, param);
-                }), tss);
+    return Common$Jit.List.unwrap_seq(Curry._1(Common$Jit.$$Array.to_list, Curry._2(Common$Jit.$$Array.mapi, (function (i, param) {
+                          var ts = param.typ;
+                          if (typeof ts === "number" || ts.tag !== /* UnionT */6) {
+                            return ;
+                          } else {
+                            return /* tuple */[
+                                    i,
+                                    ts[0]
+                                  ];
+                          }
+                        }), it.slots)));
   };
   var create_block = function (lbl) {
     var config_001 = Curry._1(Common$Jit.$$Array.copy, it.slots);
@@ -583,44 +603,24 @@ function CopySt(S) {
       config_001
     ];
     var new_lbl = genlbl(undefined);
-    var block = Darray$Jit.from_array([/* Label */Block.__(6, [new_lbl])]);
+    var block = Darray$Jit.from_array([/* Ir_label */Block.__(6, [new_lbl])]);
     it.out_bbs = Curry._3(Core$Jit.M_state.add, config, /* tuple */[
           new_lbl,
           block
         ], it.out_bbs);
     return block;
   };
-  var narrow = function ($$var, t) {
-    var i = Smap$Jit.find($$var, it.n2i);
-    var a = Caml_array.caml_array_get(it.slots, i);
-    if (Caml_obj.caml_equal(a.typ, t)) {
-      return /* S */Block.__(0, [/* BoolL */Block.__(1, [true])]);
-    }
-    if (!a.value.tag) {
-      return Pervasives.failwith("TODO");
-    }
-    Caml_array.caml_array_set(it.slots, i, {
-          typ: t,
-          value: a.value
-        });
-    var check_var = genvar(undefined);
-    Darray$Jit.append(it.cur_block, /* Call */Block.__(4, [
-            check_var,
-            /* S */Block.__(0, [/* InstrinsicL */Block.__(5, [/* Downcast */7])]),
-            /* :: */[
-              /* S */Block.__(0, [/* TypeL */Block.__(6, [t])]),
-              /* :: */[
-                /* D */Block.__(1, [$$var]),
-                /* [] */0
-              ]
-            ],
-            /* [] */0
-          ]));
-    return /* D */Block.__(1, [check_var]);
-  };
-  var add_config = function (config, labelled_block) {
-    it.out_bbs = Curry._3(Core$Jit.M_state.add, config, labelled_block, it.out_bbs);
-    
+  var add_config = function (config) {
+    var label = genlbl(undefined);
+    var block = Darray$Jit.empty(undefined);
+    it.out_bbs = Curry._3(Core$Jit.M_state.add, config, /* tuple */[
+          label,
+          block
+        ], it.out_bbs);
+    return /* tuple */[
+            label,
+            block
+          ];
   };
   var revmap = Curry._2(Common$Jit.List.map, (function (param) {
           return /* tuple */[
@@ -643,6 +643,18 @@ function CopySt(S) {
   var lookup_config = function (config) {
     return Curry._2(Core$Jit.M_state.find_opt, config, it.out_bbs);
   };
+  var set_type = function (param) {
+    var i = Smap$Jit.find(param[0], it.n2i);
+    var init = Caml_array.caml_array_get(it.slots, i);
+    return Caml_array.caml_array_set(it.slots, i, {
+                typ: param[1],
+                value: init.value
+              });
+  };
+  var set_var = function ($$var, lens) {
+    var i = Smap$Jit.find($$var, it.n2i);
+    return Caml_array.caml_array_set(it.slots, i, Curry._1(lens, Caml_array.caml_array_get(it.slots, i)));
+  };
   return {
           X: X,
           it: it,
@@ -652,7 +664,7 @@ function CopySt(S) {
           has_reached: has_reached,
           with_local: with_local,
           dynamicalize_all: dynamicalize_all,
-          narrow: narrow,
+          set_type: set_type,
           enter_block: enter_block,
           add_instr: add_instr,
           add_return_type: add_return_type,
@@ -663,7 +675,9 @@ function CopySt(S) {
           add_config: add_config,
           dynamic_values: dynamic_values,
           make_config: make_config,
-          lookup_config: lookup_config
+          lookup_config: lookup_config,
+          repr_eval: repr_eval,
+          set_var: set_var
         };
 }
 

@@ -202,8 +202,13 @@ function sequence(param) {
                   }), tls));
 }
 
+function identity(x) {
+  return x;
+}
+
 exports.List = List$1;
 exports.$$Array = $$Array$1;
 exports.flip = flip;
 exports.sequence = sequence;
+exports.identity = identity;
 /* No side effect */
