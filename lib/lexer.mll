@@ -21,6 +21,11 @@ rule read = parse
   | decimal { INT (int_of_string @@ Lexing.lexeme lexbuf) }
   | "[" { LB }
   | "]" { RB }
+  | "def" { DEF }
+  | "fed" { FED }
+  | "type" { TYPE }
+  | "@"     { AT }
+  | "bound" { BOUND }
   | "PHI" { PHI }
   | "<-" { MOVE }
   | "|" { XOR }
@@ -30,6 +35,8 @@ rule read = parse
   | "return" {RETURN}
   | "goto" {GOTO}
   | "if" {IF}
+  | "true" {TRUE}
+  | "false" {FALSE}
   | id { ID (0, Lexing.lexeme lexbuf) }
   | white { read lexbuf }
   | '(' {LP}

@@ -33,7 +33,7 @@ and t =
 | NoneT
 | RecordT of (string, t) Smap.smap
 | UnionT of t list
-| ObjectT of int (* object type number *)
+| FPtrT of int (* object type number *)
 | IntrinsicT of instrinsic
 | TopT
 | BottomT
@@ -105,8 +105,7 @@ type pe_state = {
 and func_entry = {
     args : (var, t) Smap.smap;
     kwargs : (var, t) Smap.smap;
-    closure : (var, t) Smap.smap;
-
+    globals : (var, t) Smap.smap;
     other_bounds : (var, t) Smap.smap; (* shall be all undefined *)
 }
 

@@ -135,9 +135,9 @@ and specialise_instrs : (module St) -> basic_blocks * instr list -> ir list  =
 and specialise : func_def (* current function *)
     -> func_def M_int.t   (* all function pointers *)
     -> pe_state           (* specialized body *)
-    = fun { func_entry={args; kwargs; closure; other_bounds}; body } f_defs ->
+    = fun { func_entry={args; kwargs; globals; other_bounds}; body } f_defs ->
     let mk = List.map (fun (var, t) ->  {typ = t; value=D var}) in
-    let ns = args @ kwargs @ closure @ other_bounds in
+    let ns = args @ kwargs @ other_bounds @ globals in
     let n2i = List.mapi (fun i (x, _) -> (x, i)) ns in
     let slots = Array.of_list @@ mk ns in
     let init_state =
