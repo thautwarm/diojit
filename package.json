@@ -20,6 +20,7 @@
     "@opam/dune": "*",
     "@opam/lambda-term": "*",
     "@opam/lwt": "^4.0.0",
+    "bs-readline": "^1.0.4",
     "ocaml": "~4.6.0"
   },
   "devDependencies": {

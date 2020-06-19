@@ -36,9 +36,9 @@ open Core
 %%
 
 prog : xs=list(func_def) EOF
-    { let globals = List.mapi (fun i (n, f) -> (n, FPtrT i)) xs in
+    { let globals = List.mapi (fun i (n, _) -> (n, FPtrT i)) xs in
       let fdefs = List.mapi
-        (fun i (n, f) -> i, {f with func_entry = {f.func_entry with globals = globals}})
+        (fun i (_, f) -> i, {f with func_entry = {f.func_entry with globals = globals}})
         xs
       in
       List.fold_left (fun a (i, f) -> M_int.add i f a) M_int.empty fdefs
