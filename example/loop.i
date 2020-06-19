@@ -1,4 +1,4 @@
-def f(x: @bool, y: @int, z: @int) bound [a, b, c, d]
+def main(x: @bool, y: @int, z: @int) bound [a, b, c, d]
 label entry: PHI []
     a = 1;
     a = true;
