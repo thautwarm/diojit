@@ -65,7 +65,7 @@ let rec show_t = function
   | BottomT -> "bot"
   | TopT -> "top"
   | FPtrT i -> "fptr[" ^ string_of_int i ^ "]"
-  | _ -> failwith "TODO"
+  | _ -> failwith "TODO9"
 
 let show_ann ((_, n), t) = n ^ ": " ^ show_t t
 
@@ -86,7 +86,7 @@ let rec show_ir_repr = function
       "(" ^ 
         String.concat ", " (List.map show_ir_repr args) ^
       ")"
-  | _ -> failwith "TODO"
+  | _ -> failwith "TODO8"
 
 
 let incr_ind x = x ^ "  "
@@ -119,7 +119,7 @@ let rec show_ir indent_prefix ir =
   | Ir_block suite ->
       let xs = List.map (show_ir @@ incr_ind indent_prefix) suite in
       "block:\n" ^ String.concat "\n" xs
-  | Ir_unreachable -> "unreachable"
+
 and show_ir_case indent_prefix = fun (t, v) ->
   indent_prefix ^ show_t t ^ ":\n" ^
   show_ir (indent_prefix ^ "  ") v

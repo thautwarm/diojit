@@ -65,7 +65,6 @@ type ir =
 | Ir_return     of ir_expr
 | Ir_label      of label
 | Ir_block      of ir list
-| Ir_unreachable
 
 type basic_block = {
     suite: instr list;

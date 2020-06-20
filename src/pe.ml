@@ -20,20 +20,40 @@ let rec type_less : t -> t -> bool = fun a b ->
         List.exists (type_less x) xs
     | _ -> false
 
-let rec specialise_bb : (module St) -> basic_blocks * label -> label =
+let rec union_split (module S: St) bbs suite = fun xs ->
+    let rec go = function
+    | [] -> 
+        Ir_block (specialise_instrs (module S: St) (bbs, suite))
+    | (slot_idx, types)::tl ->
+    match S.it.slots.(slot_idx).value with
+    | S _ -> failwith "TODO1"
+    | D var  as v ->
+    let cases = flip List.map types @@ fun t ->
+        t, S.with_local (fun () ->
+            S.set_type (var, t); go tl)
+    in
+    let func = S.repr_eval (S (InstrinsicL TypeOf)) in
+    let arg = S.repr_eval v in
+    let expr = Ir_call(Ir_s func, [Ir_s arg], []) in
+    Ir_switch(expr, cases)
+    in go xs
+
+and specialise_bb : (module St) -> basic_blocks * label -> label =
     fun (module S: St) (bbs, jump_to) ->
     let {suite; phi} = Smap.find jump_to bbs in
     let _ =
         match Smap.find_opt S.it.cur_lbl phi with
-        | Some xs ->S.assign_vars xs
-        | None -> assert (S.it.cur_lbl = entry_label)
+        | Some xs ->
+            S.assign_vars xs
+        | None -> ()
     in
     let config = (jump_to, Array.copy S.it.slots) in
     match S.lookup_config config  with
     | Some (lbl, _) -> lbl
     | None ->
-    let (link_lbl, _) as link = S.add_config config in
-    S.enter_block link;
+    let (link_lbl, link_block) = S.add_config config in
+    S.enter_block link_block;
+    S.it.cur_lbl <- jump_to;
     let is_def_generated = 
         if S.has_reached jump_to then begin
             S.dynamicalize_all ();
@@ -42,14 +62,15 @@ let rec specialise_bb : (module St) -> basic_blocks * label -> label =
                 S.add_instr @@ Ir_goto def_lbl;
                 true
             | None ->
-                let (def_lbl, _) as def = S.add_config @@ S.make_config() in
+                let (def_lbl, def_block) = S.add_config @@ S.make_config() in
                 S.add_instr @@ Ir_goto def_lbl;
-                S.enter_block def;
+                S.enter_block def_block;
                 false
             end
         else
             false
     in
+    S.mark_reached jump_to;
     if is_def_generated
     then link_lbl
     else
@@ -60,22 +81,8 @@ let rec specialise_bb : (module St) -> basic_blocks * label -> label =
                 specialise_instrs (module S: St) (bbs, suite)
         end; link_lbl
     | union_types ->
-        let rec go = function
-            | [] -> 
-                Ir_block (specialise_instrs (module S: St) (bbs, suite))
-            | (slot_idx, types)::tl ->
-            match S.it.slots.(slot_idx).value with
-            | S _ -> failwith "TODO"
-            | D var  as v ->
-            let cases = flip List.map types @@ fun t ->
-                t, S.with_local (fun () ->
-                    S.set_type (var, t); go tl)
-            in
-            let func = S.repr_eval (S (InstrinsicL TypeOf)) in
-            let arg = S.repr_eval v in
-            let expr = Ir_call(Ir_s func, [Ir_s arg], []) in
-            Ir_switch(expr, cases)
-        in S.add_instr @@ go union_types; link_lbl
+        let split = union_split (module S: St) bbs suite union_types in
+        S.add_instr split; link_lbl
 
 and specialise_instrs : (module St) -> basic_blocks * instr list -> ir list  = 
     fun (module S) (bbs, instrs) ->
@@ -84,7 +91,7 @@ and specialise_instrs : (module St) -> basic_blocks * instr list -> ir list  =
     | GotoIf(cond, t, f)::_ -> begin
         match S.repr_eval cond with
         | {value=D _} as cond ->
-            if cond.typ != bool_t then failwith "TODO"
+            if cond.typ != bool_t then failwith "TODO2"
             else
             let t = specialise_bb (module S: St) (bbs, t) in
             let f = specialise_bb (module S: St) (bbs, f) in
@@ -95,14 +102,16 @@ and specialise_instrs : (module St) -> basic_blocks * instr list -> ir list  =
         | {value=S (BoolL false)} ->
             let f = specialise_bb (module S: St) (bbs, f) in
             [Ir_goto f]
-        | {value=S _} -> failwith "TODO"
+        | {value=S _} -> failwith "TODO3"
         end
     | Goto l::_ ->
         let l = specialise_bb (module S: St) (bbs, l) in
         [Ir_goto l]
     | Return r::_ ->
         let value = S.repr_eval r in
-        S.it.ret <- type_union value.typ S.it.ret;
+        let open Pretty in
+        print_endline @@ show_ir_repr (Ir_s value);
+        S.add_return_type value.typ;
         [Ir_return (Ir_s value)]
     | Assign(target, from)::tl ->
         let from = S.repr_eval from in
@@ -111,24 +120,51 @@ and specialise_instrs : (module St) -> basic_blocks * instr list -> ir list  =
         | {value=S _} -> go tl
         | _ -> Ir_assign(target, Ir_s from)::go tl
         end
-    | Call(Some bound, func, args, kwargs)::tl ->
+    | Call(bound, func, args, kwargs)::tl ->
         let func = S.repr_eval func in
         let args = List.map S.repr_eval args in
         let kwargs = Smap.map S.repr_eval kwargs in
-        begin match func, args, kwargs with
-        | {value=S(InstrinsicL IsTypeOf)},
-          [{typ=t1}; {value=S (TypeL t2)}],
-          [] -> begin
-          try 
-            let test = type_less t1 t2 in
-            let _ = S.set_var bound @@ fun _ -> {value=S(BoolL test); typ=bool_t}
-            in go tl
-          with NonStaticTypeCheck ->
-            failwith "TODO"
-          end
-        | _ -> failwith "TODO"
+        begin match bound, func, args, kwargs with
+        | Some bound,
+          {value=S(InstrinsicL IsTypeOf)},
+          [{typ=t1} as l; {value=S (TypeL t2)} as r],
+          [] ->
+            begin try 
+                let test = type_less t1 t2 in
+                let _ = S.set_var bound @@ fun _ -> {value=S(BoolL test); typ=bool_t}
+                in go tl
+            with NonStaticTypeCheck ->
+            let rt_tyck =
+                Ir_call(
+                    Ir_s (S.repr_eval @@ S(InstrinsicL IsTypeOf)),
+                    [Ir_s l; Ir_s r],
+                    []
+                )
+            in
+            (* case split for boolean *)
+            begin match l with
+            | {value=D lvar} ->
+                let true_clause =
+                    S.with_local @@ fun () ->
+                    let _ = S.set_var bound @@
+                        fun _ -> {value = S(BoolL true); typ=bool_t}
+                    in
+                    let _ = S.set_var lvar @@
+                        fun _ -> {l with typ=t2}
+                    in go tl
+                in
+                let false_clause =
+                    (* TODO: type difference *)
+                    S.with_local @@ fun () ->
+                    let _ = S.set_var bound @@
+                        fun _ -> {value = S(BoolL false); typ=bool_t}
+                    in go tl
+                in [Ir_if(rt_tyck, Ir_block true_clause, Ir_block false_clause)]
+            | _ -> failwith "TODO 10"
+            end (* match *)
+            end (* try *)
+        | _ -> failwith "TODO5"
         end
-    | _ -> failwith "TODO"
     in go instrs
 
 

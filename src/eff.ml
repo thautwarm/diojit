@@ -41,7 +41,7 @@ module type St = sig
     val with_local : (unit -> 'b) -> 'b
     val dynamicalize_all : unit -> unit
     val set_type : (var * t) -> unit
-    val enter_block: (label * ir Darray.darray) -> unit
+    val enter_block: ir Darray.darray -> unit
     val add_instr : ir -> unit
     val add_return_type : t -> unit
     val genlbl : unit -> label
@@ -49,7 +49,6 @@ module type St = sig
     val union_types : unit -> (int * t list) list
     val create_block : label -> ir Darray.darray
     val add_config : (label * value array) -> (label * ir Darray.darray)
-    val dynamic_values : value array
     val make_config : unit -> (label * value array)
     val lookup_config : (label * value array) ->  (label * ir Darray.darray) option
     val repr_eval : repr -> value
@@ -131,7 +130,7 @@ module MkSt(X : sig val x : pe_state end) : St = struct
             let v = it.slots.(i) in
             it.slots.(i) <- {typ = TopT; value = D n};
             match v with
-            | {typ = BottomT; _} -> failwith "TODO"
+            | {typ = BottomT; _} -> failwith "TODO7"
             | {typ = TopT; _} | {typ = UnionT _; _} -> ()
             | {typ; value} ->
                 let func = repr_eval @@ S (InstrinsicL Upcast) in
@@ -147,9 +146,8 @@ module MkSt(X : sig val x : pe_state end) : St = struct
         ) it.n2i
 
 
-    let enter_block (label, block) =
-        it.cur_block <- block;
-        it.cur_lbl <- label
+    let enter_block block =
+        it.cur_block <- block
     
     let add_return_type t =
         it.ret <- type_union it.ret t
@@ -178,15 +176,10 @@ module MkSt(X : sig val x : pe_state end) : St = struct
     
     let add_config config =
         let label = genlbl() in
-        let block = Darray.empty() in
+        let block = Darray.from_array [|Ir_label label|] in
         it.out_bbs <- M_state.add config (label, block) it.out_bbs;
         label, block
 
-    let dynamic_values =
-        let revmap = List.map (fun (a, b) -> b, a) it.n2i in
-        Array.init (Array.length it.slots) (fun i ->
-            {value=D (Smap.find i revmap); typ=TopT}
-        )
     let make_config () = it.cur_lbl, Array.copy (it.slots)
 
     let lookup_config config = M_state.find_opt config it.out_bbs

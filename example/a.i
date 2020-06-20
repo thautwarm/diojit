@@ -1,4 +1,4 @@
-def main() bound []
+def main() bound [a]
 label entry: PHI []
 a = 1;
 a = 1.2;

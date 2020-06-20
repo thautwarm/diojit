@@ -20,11 +20,20 @@ open Core
 open Common
 open Pretty
 
-let () =
+let main() =
   match Array.to_list Sys.argv with
   | [_; _; filename] ->
-      let fdefs = M_int.bindings @@ parse filename in
-      flip List.iter fdefs @@  fun (_, s) ->
-          print_endline @@ show_func_def s
+      let fdefs = parse filename in 
+      let main_def = M_int.find 0 fdefs in
+      let open Pe in
+      let bbs = M_state.bindings (specialise main_def fdefs).out_bbs in
+      flip List.iter bbs @@ fun (_, xs) ->
+        Array.iter
+          (fun x -> print_endline @@ show_ir "" x)
+          (Darray.to_array @@ snd xs)
+      (* flip List.iter fdefs @@  fun (_, s) ->
+          print_endline @@ show_func_def s *)
   | args -> 
     print_endline @@ "invalid arguments : " ^ String.concat " " args
+
+let () = main()

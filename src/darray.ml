@@ -5,6 +5,7 @@ exception AccessingEmptyList
 let exp n = 1 + n lsl 2
 type 't darray = {mutable data: 't array; mutable len: int}
 let from_array xs = {data = xs; len = Array.length xs}
+let to_array {data; len} = Array.init len (fun i -> data.(i))
 let to_list {data; _} = Array.to_list data
 let make n elt = {data=Array.make n elt; len = n}
 let len {len; _} = len

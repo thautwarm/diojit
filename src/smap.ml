@@ -1,6 +1,6 @@
 type ('a, 'b) smap = ('a * 'b) list
 
-let find = List.assoc
+let find x xs = List.assoc x xs
 
 (* before 4.05 *)
 let rec find_opt key = function
