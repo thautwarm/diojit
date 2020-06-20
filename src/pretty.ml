@@ -1,6 +1,8 @@
 open Core
 open Common
 
+let show_sym (_, n) = n
+
 let show_repr = function
   | D (_, n) -> n
   | S (IntL i) -> string_of_int i
@@ -77,3 +79,47 @@ let show_func_def {func_entry={args; globals; other_bounds; _}; body=body} =
     "global [" ^ globals ^ "]\n" ^
     body
 
+let rec show_ir_repr = function
+  | Ir_s v -> show_repr v.value ^ ": " ^ show_t v.typ
+  | Ir_call(func, args, []) ->
+    show_ir_repr func ^
+      "(" ^ 
+        String.concat ", " (List.map show_ir_repr args) ^
+      ")"
+  | _ -> failwith "TODO"
+
+
+let incr_ind x = x ^ "  "
+let rec show_ir indent_prefix ir =
+  indent_prefix ^
+  match ir with
+  | Ir_switch(v, cases) ->
+    "switch " ^ show_ir_repr v ^ "\n" ^
+    String.concat "\n" (List.map (show_ir_case @@ incr_ind indent_prefix) cases)
+  | Ir_if(cond, t, f) ->
+    let indent_prefix' = incr_ind indent_prefix in
+    "if " ^ show_ir_repr cond ^ "\n" ^
+    show_ir indent_prefix' t ^ "\n" ^
+    show_ir indent_prefix' f
+  | Ir_gotoif(cond, t, f) ->
+    Printf.sprintf "if %s goto %s goto %s"
+                   (show_ir_repr cond)
+                   (show_sym t)
+                   (show_sym f)
+  | Ir_goto l ->
+    Printf.sprintf "goto %s" (show_sym l)
+  | Ir_label l ->
+    Printf.sprintf "label %s:" (show_sym l)
+  | Ir_assign(target, from) ->
+    Printf.sprintf "%s = %s"
+                   (show_sym target)
+                   (show_ir_repr from)
+  | Ir_return r ->
+    Printf.sprintf "return %s" (show_ir_repr r)
+  | Ir_block suite ->
+      let xs = List.map (show_ir @@ incr_ind indent_prefix) suite in
+      "block:\n" ^ String.concat "\n" xs
+  | Ir_unreachable -> "unreachable"
+and show_ir_case indent_prefix = fun (t, v) ->
+  indent_prefix ^ show_t t ^ ":\n" ^
+  show_ir (indent_prefix ^ "  ") v

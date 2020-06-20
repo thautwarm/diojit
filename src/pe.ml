@@ -68,7 +68,7 @@ let rec specialise_bb : (module St) -> basic_blocks * label -> label =
             | S _ -> failwith "TODO"
             | D var  as v ->
             let cases = flip List.map types @@ fun t ->
-                TypeL t, S.with_local (fun () ->
+                t, S.with_local (fun () ->
                     S.set_type (var, t); go tl)
             in
             let func = S.repr_eval (S (InstrinsicL TypeOf)) in

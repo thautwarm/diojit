@@ -57,7 +57,7 @@ type ir_expr =
 | Ir_call of ir_expr * ir_expr list * (string * ir_expr) list
 
 type ir =
-| Ir_switch     of ir_expr * (const * ir) list (* todo: default branch? *)
+| Ir_switch     of ir_expr * (t * ir) list (* todo: default branch? *)
 | Ir_if         of ir_expr * ir * ir
 | Ir_gotoif     of ir_expr * label * label
 | Ir_goto       of label 

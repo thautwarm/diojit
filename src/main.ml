@@ -22,7 +22,7 @@ open Pretty
 
 let () =
   match Array.to_list Sys.argv with
-  | [_; _; filename] -> 
+  | [_; _; filename] ->
       let fdefs = M_int.bindings @@ parse filename in
       flip List.iter fdefs @@  fun (_, s) ->
           print_endline @@ show_func_def s
