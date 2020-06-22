@@ -28,7 +28,7 @@ let main() =
       match main with
       | None -> failwith "no main function found"
       | Some {entry={globals; fn_bounds}; body=body} ->
-      let open Pe in
+       let open Pe in
       let pe_state = init_pe_state fdefs in
       let suite, t =
         specialise
@@ -40,7 +40,7 @@ let main() =
           }
           body
       in
-      print_endline @@ show_t t;
+      print_endline @@ "main return" ^ show_t t;
       flip List.iter suite @@ fun x ->
         print_endline @@ show_ir "" x
       (* flip List.iter fdefs @@  fun (_, s) ->

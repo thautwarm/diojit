@@ -41,9 +41,12 @@ prog : xs=list(func_def) EOF
       let globals = List.mapi (fun i (n, _) -> (n, FPtrT i)) xs in
       let fdefs = List.mapi
         (fun i (n, f) ->
+          let f = 
+            {f with entry = {f.entry with globals = globals; fn_bounds = f.entry.fn_bounds}}
+          in
           (if n = (0, "main") then
             main := Some f);
-          i, {f with entry = {f.entry with globals = globals; fn_bounds = f.entry.fn_bounds}})
+          i, f)
         xs
       in
       !main, List.fold_left (fun a (i, f) -> M_int.add i f a) M_int.empty fdefs

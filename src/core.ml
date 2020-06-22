@@ -5,14 +5,13 @@ let unwrap_scope : 'a scoped -> 'a = fun (_, a) -> a
 type label = string scoped
 
 type var = string scoped
-type instrinsic = Make_closure 
-                | Make_cell
-                | Deref
-                | IsTypeOf
-                | TypeOf
-                | BoolOr
-                | Upcast    (* has effect *)
-                | Downcast  (* has effect if return true *)
+type instrinsic =
+| IsTypeOf
+| TypeOf
+| BoolOr
+| Upcast    (* has effect *)
+| Downcast  (* has effect if return true *)
+
 type const =
 | NoneL
 | UndefL
@@ -21,7 +20,7 @@ type const =
 | FloatL of float
 | StrL of string (* becomes char array after prototyping *)
 | TupleL of const list
-| InstrinsicL of instrinsic
+| IntrinsicL of instrinsic
 | FPtrL of fptr
 | MethL of int
 | TypeL of t

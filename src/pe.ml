@@ -32,7 +32,7 @@ let rec union_split (module S: St) bbs suite = fun xs ->
         t, S.with_local (fun () ->
             S.set_type (var, t); go tl)
     in
-    let func = S.repr_eval (S (InstrinsicL TypeOf)) in
+    let func = S.repr_eval (S (IntrinsicL TypeOf)) in
     let arg = S.repr_eval v in
     let expr = Ir_call(Ir_s func, [Ir_s arg], []) in
     Ir_switch(expr, cases)
@@ -163,8 +163,6 @@ and specialise_instrs : (module St) -> basic_blocks * instr list -> ir list  =
         [Ir_goto l]
     | Return r::_ ->
         let value = S.repr_eval r in
-        let open Pretty in
-        print_endline @@ show_ir_repr (Ir_s value);
         S.add_return_type value.typ;
         [Ir_return (Ir_s value)]
     | Assign(target, from)::tl ->
@@ -180,7 +178,7 @@ and specialise_instrs : (module St) -> basic_blocks * instr list -> ir list  =
         let kwargs = Smap.map S.repr_eval kwargs in
         begin match bound, func, args, kwargs with
         | Some bound,
-          {value=S(InstrinsicL IsTypeOf)},
+          {value=S(IntrinsicL IsTypeOf)},
           [{typ=t1} as l; {value=S (TypeL t2)} as r],
           [] ->
             begin try 
@@ -190,7 +188,7 @@ and specialise_instrs : (module St) -> basic_blocks * instr list -> ir list  =
             with NonStaticTypeCheck ->
             let rt_tyck =
                 Ir_call(
-                    Ir_s (S.repr_eval @@ S(InstrinsicL IsTypeOf)),
+                    Ir_s (S.repr_eval @@ S(IntrinsicL IsTypeOf)),
                     [Ir_s l; Ir_s r],
                     []
                 )

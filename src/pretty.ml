@@ -3,6 +3,13 @@ open Common
 
 let show_sym (_, n) = n
 
+let show_intrinsic = function
+  | TypeOf -> "TypeOf"
+  | IsTypeOf -> "IsTypeOf"
+  | BoolOr -> "BoolOr"
+  | Upcast -> "upcast"
+  | Downcast -> "downcast"
+
 let show_repr = function
   | D (_, n) -> n
   | S (IntL i) -> string_of_int i
@@ -10,6 +17,9 @@ let show_repr = function
   | S (StrL s) -> "str[" ^ s ^ "]"
   | S (BoolL true) -> "true"
   | S (BoolL false) -> "false"
+  | S (IntrinsicL intrin) -> show_intrinsic intrin
+  | S (MethL i) -> "meth[" ^ string_of_int i ^ "]"
+  | S (FPtrL i) -> "func[" ^ string_of_int i ^ "]"
   | S _ -> "<unsupported>"
 
 let show_instr =
@@ -57,7 +67,6 @@ let show_bb ((_, l), {suite; phi}) =
     "]\n" ^
     String.concat ";\n" (List.map show_instr suite)
 
-            
 let rec show_t = function
   | NomT s -> "@" ^ s
   | TypeT t -> "type[" ^ show_t t ^ "]"
@@ -65,7 +74,10 @@ let rec show_t = function
   | BottomT -> "bot"
   | TopT -> "top"
   | FPtrT i -> "fptr[" ^ string_of_int i ^ "]"
-  | MethT i -> "method[" ^ string_of_int i ^ "]"
+  | MethT i -> "meth[" ^ string_of_int i ^ "]"
+  | NoneT -> "()"
+  | IntrinsicT intrin -> "type[" ^ show_intrinsic intrin ^ "]"
+
   | _ -> failwith "TODO9"
 
 let show_ann ((_, n), t) = n ^ ": " ^ show_t t
@@ -83,7 +95,7 @@ let show_func_def {entry={args; globals; fn_bounds; _}; body=body} =
 let rec show_ir_repr = function
   | Ir_s v -> show_repr v.value ^ ": " ^ show_t v.typ
   | Ir_call(func, args, []) ->
-    show_ir_repr func ^
+    "(" ^ show_ir_repr func ^ ")" ^
       "(" ^ 
         String.concat ", " (List.map show_ir_repr args) ^
       ")"

@@ -27,7 +27,7 @@ let rec type_of_const : const -> t = function
     | FloatL _ -> float_t
     | StrL _  -> string_t
     | TupleL xs -> TupleT (List.map type_of_const xs)
-    | InstrinsicL c -> IntrinsicT c
+    | IntrinsicL c -> IntrinsicT c
     | TypeL t       -> TypeT t
     | FPtrL f       -> FPtrT f
     | MethL f       -> MethT f
@@ -153,7 +153,7 @@ module MkSt(X : sig val x : pe_state end) : St = struct
             | {typ = BottomT; _} -> failwith "TODO7"
             | {typ = TopT; _} | {typ = UnionT _; _} -> ()
             | {typ; value} ->
-                let func = repr_eval @@ S (InstrinsicL Upcast) in
+                let func = repr_eval @@ S (IntrinsicL Upcast) in
                 let args = List.map repr_eval [S(TypeL typ); value] in
                 add_instr @@ Ir_assign(
                     n, 
