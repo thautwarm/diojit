@@ -31,17 +31,22 @@ open Core
 %token SEMICOLON
 %token EOF
 
-%start <Core.func_def Core.M_int.t> prog
+%start <Core.fn_def option * (Core.fn_def Core.M_int.t)> prog
 
 %%
 
 prog : xs=list(func_def) EOF
-    { let globals = List.mapi (fun i (n, _) -> (n, FPtrT i)) xs in
+    { 
+      let main = ref None in
+      let globals = List.mapi (fun i (n, _) -> (n, FPtrT i)) xs in
       let fdefs = List.mapi
-        (fun i (_, f) -> i, {f with func_entry = {f.func_entry with globals = globals}})
+        (fun i (n, f) ->
+          (if n = (0, "main") then
+            main := Some f);
+          i, {f with entry = {f.entry with globals = globals; fn_bounds = f.entry.fn_bounds}})
         xs
       in
-      List.fold_left (fun a (i, f) -> M_int.add i f a) M_int.empty fdefs
+      !main, List.fold_left (fun a (i, f) -> M_int.add i f a) M_int.empty fdefs
     }
 ;
 
@@ -51,20 +56,18 @@ typ : AT n=STRING { NomT n }
      | LP ts=separated_list(XOR, typ) RP { UnionT ts }
      ;
 
-ann : n=ID COLON t=typ {(n, t)}
-;
 
-func_entry : LP args=separated_list(COMMA, ann) RP
-       BOUND LB bounds=separated_list(COMMA, ID) RB
+func_entry : LP args=separated_list(COMMA, ID) RP
+       BOUND LB fn_bounds=separated_list(COMMA, ID) RB
         { { args=args
           ; kwargs=[]
-          ; other_bounds=List.map (fun x -> x, BottomT) bounds
+          ; fn_bounds=fn_bounds
           ; globals=[]
           }
         }
 ;
 
-func_def : DEF n=ID func_entry=func_entry body=bbs FED { (n, {func_entry; body}) }
+func_def : DEF n=ID entry=func_entry body=bbs FED { (n, {entry; body}) }
 ;
 
 bbs: stmts=list(basic_block) {stmts}

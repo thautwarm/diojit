@@ -37,4 +37,4 @@ exception Error
 
 (* The monolithic API. *)
 
-val prog: (Lexing.lexbuf -> token) -> Lexing.lexbuf -> (Core.func_def Core.M_int.t)
+val prog: (Lexing.lexbuf -> token) -> Lexing.lexbuf -> (Core.fn_def option * (Core.fn_def Core.M_int.t))

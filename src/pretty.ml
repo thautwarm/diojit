@@ -65,15 +65,16 @@ let rec show_t = function
   | BottomT -> "bot"
   | TopT -> "top"
   | FPtrT i -> "fptr[" ^ string_of_int i ^ "]"
+  | MethT i -> "method[" ^ string_of_int i ^ "]"
   | _ -> failwith "TODO9"
 
 let show_ann ((_, n), t) = n ^ ": " ^ show_t t
 
-let show_func_def {func_entry={args; globals; other_bounds; _}; body=body} =
+let show_func_def {entry={args; globals; fn_bounds; _}; body=body} =
     let body = String.concat "\n" @@ List.map show_bb body in
-    let args = String.concat ", " @@ List.map show_ann args in
+    let args = String.concat ", " @@ List.map show_sym args in
     let globals = String.concat ", " @@ List.map show_ann globals in
-    let bounds  = String.concat ", " @@ List.map show_ann other_bounds in
+    let bounds  = String.concat ", " @@ List.map show_sym fn_bounds in
     "func (" ^ args ^ ")\n" ^
     "bound [" ^ bounds ^ "]\n" ^
     "global [" ^ globals ^ "]\n" ^
@@ -116,6 +117,8 @@ let rec show_ir indent_prefix ir =
                    (show_ir_repr from)
   | Ir_return r ->
     Printf.sprintf "return %s" (show_ir_repr r)
+  | Ir_do exp ->
+    Printf.sprintf "ignore %s" (show_ir_repr exp)
   | Ir_block suite ->
       let xs = List.map (show_ir @@ incr_ind indent_prefix) suite in
       "block:\n" ^ String.concat "\n" xs

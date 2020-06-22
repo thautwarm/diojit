@@ -5,5 +5,6 @@ open Dynjit.Core
 
 let () =
   let fdefs = M_int.bindings @@ parse() in
+  let pe_state = init_pe_state fdefs in
   flip List.iter fdefs @@  fun (_, s) ->
       print_endline @@ show_func_def s

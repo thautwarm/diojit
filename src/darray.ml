@@ -46,3 +46,8 @@ let pop darray =
         raise @@ AccessingEmptyList 
     else
         darray.len <- darray.len - 1
+
+let iter f {data; len} =
+    for i = 0 to len - 1 do
+        f (data.(i))
+    done

@@ -29,6 +29,8 @@ let rec type_of_const : const -> t = function
     | TupleL xs -> TupleT (List.map type_of_const xs)
     | InstrinsicL c -> IntrinsicT c
     | TypeL t       -> TypeT t
+    | FPtrL f       -> FPtrT f
+    | MethL f       -> MethT f
 
 
 module type St = sig
@@ -45,6 +47,10 @@ module type St = sig
     val add_instr : ir -> unit
     val add_return_type : t -> unit
     val genlbl : unit -> label
+    val new_meth_id : unit -> int
+    val new_meth : (fptr * meth_entry) -> (meth_entry, ir list) def * t -> int
+    val search_meth_id : (fptr * meth_entry) -> int option
+    val find_meth_def : int -> (meth_entry, ir list) def * t
 
     val union_types : unit -> (int * t list) list
     val create_block : label -> ir Darray.darray
@@ -59,7 +65,21 @@ end
 module MkSt(X : sig val x : pe_state end) : St = struct
     module X = X
     let it = X.x
+
+    let new_meth_id() =
+        let i = it.meth_count in
+        it.meth_count <- i + 1; i
     
+    
+    let new_meth meth_spec def =
+        let id = new_meth_id() in
+        it.meth_defs <- M_int.add id def it.meth_defs;
+        it.meth_refs <- M_func_entry.add meth_spec id it.meth_refs;
+        id
+
+    let search_meth_id entry = M_func_entry.find_opt entry it.meth_refs
+    let find_meth_def id = M_int.find id it.meth_defs
+
     let repr_eval = function
         | S c as a -> {value=a; typ=type_of_const c}
         | D var ->

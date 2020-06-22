@@ -38,6 +38,60 @@ let rec union_split (module S: St) bbs suite = fun xs ->
     Ir_switch(expr, cases)
     in go xs
 
+and static_call_no_inline :
+    (module St)
+    -> basic_blocks * instr list
+    -> var option
+    -> fptr
+    -> (value list * (string, value) Smap.smap)
+    -> ir list =
+    fun (module S: St) (bbs, tl)
+    target fptr (args, kwargs) ->
+    let {entry=form_entry} as fdef = M_int.find fptr S.it.i2f in
+    if List.length args != List.length form_entry.args
+    then failwith "TODO11-(verify args kwargs and globals)"
+    else
+    
+    let lookup_kwargs from ((_, s) as k) =
+        match Smap.find_opt s from with
+        | Some v -> k, v.typ
+        | None -> failwith "TODO12 invalid parameters"
+    
+    in let meth_entry = 
+        { args = List.map2 (fun n {typ; _} -> n, typ) form_entry.args args
+        ; kwargs = List.map (lookup_kwargs kwargs) form_entry.kwargs
+        ; globals = form_entry.globals
+        ; meth_bounds = form_entry.fn_bounds
+        } 
+    in let meth_spec = (fptr, meth_entry) in
+    let call_with_meth_id meth_id =
+            Ir_call(
+               Ir_s (S.repr_eval @@ S (MethL meth_id)),
+               List.map (fun x -> Ir_s x) args,
+               Smap.map (fun x -> Ir_s x) kwargs
+            )
+    in
+    let ir_expr, ret_t = match S.search_meth_id meth_spec with
+        | Some meth_id ->
+            let _, ret_t = S.find_meth_def meth_id in
+            call_with_meth_id meth_id, ret_t
+        | None ->
+            let ir_lst, ret_t = specialise S.it meth_entry fdef.body in
+            let def = {body = ir_lst; entry = meth_entry}, ret_t in
+            let meth_id = S.new_meth meth_spec def in
+            call_with_meth_id meth_id, ret_t
+    in match target with
+    | None -> [Ir_do ir_expr]
+    | Some target ->
+        Ir_assign(target, ir_expr) ::
+        begin
+         S.set_var target (fun _ -> {value = D target; typ = ret_t});
+         match S.union_types() with
+         | [] -> specialise_instrs (module S: St) (bbs, tl)
+         | union_types ->
+            [union_split (module S: St) bbs tl union_types]
+        end
+
 and specialise_bb : (module St) -> basic_blocks * label -> label =
     fun (module S: St) (bbs, jump_to) ->
     let {suite; phi} = Smap.find jump_to bbs in
@@ -163,21 +217,25 @@ and specialise_instrs : (module St) -> basic_blocks * instr list -> ir list  =
             | _ -> failwith "TODO 10"
             end (* match *)
             end (* try *)
+        | _, {typ=FPtrT fptr}, args, kwargs ->
+            static_call_no_inline (module S: St) (bbs, tl) bound fptr (args, kwargs)
         | _ -> failwith "TODO5"
         end
     in go instrs
 
-
-and specialise : func_def (* current function *)
-    -> func_def M_int.t   (* all function pointers *)
-    -> pe_state           (* specialized body *)
-    = fun { func_entry={args; kwargs; globals; other_bounds}; body } f_defs ->
+and specialise : pe_state
+    -> meth_entry (* current function *)
+    -> basic_blocks
+    -> (ir list * t)  (* specialized body and return type *)
+    = fun pe_state {args; kwargs; globals; meth_bounds} body ->
+    let meth_bounds = List.map (fun a -> a, BottomT) meth_bounds in
+    let ns = args @ kwargs @ meth_bounds @ globals in
     let mk = List.map (fun (var, t) ->  {typ = t; value=D var}) in
-    let ns = args @ kwargs @ other_bounds @ globals in
     let n2i = List.mapi (fun i (x, _) -> (x, i)) ns in
     let slots = Array.of_list @@ mk ns in
     let init_state =
-        { out_bbs = M_state.empty
+        { pe_state with
+          out_bbs = M_state.empty
         ; lbl_count = 0
         ; ret = BottomT
         ; reached = Smap.empty
@@ -185,10 +243,31 @@ and specialise : func_def (* current function *)
         ; cur_block = Darray.empty()
         ; cur_lbl = entry_label
         ; n2i = n2i
-        ; i2f = f_defs
-        ; scope_level = 0
         }
     in
     let module S = MkSt(struct let x = init_state end) in
     let _ = specialise_bb (module S: St) (body, entry_label) in
-    S.it
+    let {out_bbs; ret} = S.it in
+    let out_irs = ref [] in
+    let _ = flip List.iter (M_state.bindings out_bbs) @@ fun (_, (_, irs)) ->
+        flip Darray.iter irs @@ fun ir ->
+            out_irs := ir :: !out_irs
+    in
+    (List.rev !out_irs, ret)
+
+let init_pe_state : fn_def M_int.t (* all function pointers *) -> pe_state =
+    fun f_defs ->
+    { out_bbs = M_state.empty
+    ; lbl_count = 0
+    ; ret = BottomT
+    ; reached = Smap.empty
+    ; slots = [||]
+    ; cur_block = Darray.empty()
+    ; cur_lbl = entry_label
+    ; n2i = []
+    ; i2f = f_defs
+    ; scope_level = 0
+    ; meth_refs = M_func_entry.empty
+    ; meth_defs = M_int.empty
+    ; meth_count = 0
+    }

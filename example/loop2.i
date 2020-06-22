@@ -1,6 +1,9 @@
-def main(x: @bool, y: @int, z: @int) bound [a, b, c, d]
+def main() bound [x, y, z, a, b, c, d]
 label entry: PHI []
-    a = true;
+    x = true;
+    y = 1;
+    z = 2;
+    a = x;
     if a goto loop goto ret;
 label loop: PHI [ entry: c <- a ]
     goto end;

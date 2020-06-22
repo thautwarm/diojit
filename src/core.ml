@@ -22,6 +22,8 @@ type const =
 | StrL of string (* becomes char array after prototyping *)
 | TupleL of const list
 | InstrinsicL of instrinsic
+| FPtrL of fptr
+| MethL of int
 | TypeL of t
 
 and t =
@@ -33,10 +35,13 @@ and t =
 | NoneT
 | RecordT of (string, t) Smap.smap
 | UnionT of t list
-| FPtrT of int (* object type number *)
+| FPtrT of fptr (* object type number *)
+| MethT of int
 | IntrinsicT of instrinsic
 | TopT
 | BottomT
+
+and fptr = int
 
 type repr = S of const | D of var
 type value = {typ: t; value: repr}
@@ -63,6 +68,7 @@ type ir =
 | Ir_goto       of label 
 | Ir_assign     of var * ir_expr
 | Ir_return     of ir_expr
+| Ir_do         of ir_expr
 | Ir_label      of label
 | Ir_block      of ir list
 
@@ -81,11 +87,38 @@ end)
 
 module M_int = Map.Make(Int)
 
+type fn_entry
+    = { args : var list
+      ; kwargs : var list
+      ; globals : (var, t) Smap.smap
+      ; fn_bounds : var list
+      }
+
+type ('entry, 'body) def = {
+    entry : 'entry;
+    body : 'body
+}
+
+type meth_entry
+    = { args : (var, t) Smap.smap
+      ; kwargs : (var, t) Smap.smap
+      ; globals : (var, t) Smap.smap
+      ; meth_bounds : var list
+      }
+
+module M_func_entry = Map.Make(struct
+    type t = (fptr * meth_entry)
+    let compare = compare
+end)
+
 (* todo: to avoid infinite configutions, add a set of reached labels*)
 type pe_state = {
     (* global states *)
+    mutable meth_refs : int M_func_entry.t;
+    mutable meth_defs : ((meth_entry, ir list) def * t) M_int.t;
     mutable out_bbs : (label * ir Darray.darray) M_state.t;
     mutable lbl_count : int;
+    mutable meth_count : int;
     mutable ret: t;
 
     (* local states *)
@@ -96,21 +129,13 @@ type pe_state = {
     
     (* immutable info *)
     n2i : (var, int) Smap.smap;
-    i2f : func_def M_int.t;
+    i2f : (fn_entry, basic_blocks) def M_int.t;
     scope_level : int; (* for inline use *)
 
 }
 
-and func_entry = {
-    args : (var, t) Smap.smap;
-    kwargs : (var, t) Smap.smap;
-    globals : (var, t) Smap.smap;
-    other_bounds : (var, t) Smap.smap; (* shall be all undefined *)
-}
-
-and func_def = {
-    func_entry : func_entry;
-    body : basic_blocks
-}
 
 let entry_label = (0, "entry")
+
+type meth_def = (meth_entry, ir list) def
+type fn_def = (fn_entry, basic_blocks) def

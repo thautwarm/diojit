@@ -1,6 +1,5 @@
 # 1 "src/lexer.mll"
  
-open Lexing
 open Parser
 exception SyntaxError of string
 let pointer : string list ref = ref []
@@ -10,7 +9,7 @@ let push_ptr : string -> unit = fun s ->
 let c2s s = String.init 1 @@ fun _ -> s
 type pstr_status = NonStr | StrEsc | StrNonEsc
 
-# 14 "src/lexer.ml"
+# 13 "src/lexer.ml"
 let __ocaml_lex_tables = {
   Lexing.lex_base =
    "\000\000\225\255\227\255\228\255\229\255\230\255\231\255\232\255\
@@ -1094,159 +1093,159 @@ let rec read lexbuf =
 and __ocaml_lex_read_rec lexbuf __ocaml_lex_state =
   match Lexing.engine __ocaml_lex_tables __ocaml_lex_state lexbuf with
       | 0 ->
-# 20 "src/lexer.mll"
+# 19 "src/lexer.mll"
                ( FLOAT (float_of_string @@ Lexing.lexeme lexbuf) )
-# 1100 "src/lexer.ml"
+# 1099 "src/lexer.ml"
 
   | 1 ->
-# 21 "src/lexer.mll"
+# 20 "src/lexer.mll"
             ( INT (int_of_string @@ Lexing.lexeme lexbuf) )
-# 1105 "src/lexer.ml"
+# 1104 "src/lexer.ml"
 
   | 2 ->
-# 22 "src/lexer.mll"
+# 21 "src/lexer.mll"
         ( LB )
-# 1110 "src/lexer.ml"
+# 1109 "src/lexer.ml"
 
   | 3 ->
-# 23 "src/lexer.mll"
+# 22 "src/lexer.mll"
         ( RB )
-# 1115 "src/lexer.ml"
+# 1114 "src/lexer.ml"
 
   | 4 ->
-# 24 "src/lexer.mll"
+# 23 "src/lexer.mll"
           ( DEF )
-# 1120 "src/lexer.ml"
+# 1119 "src/lexer.ml"
 
   | 5 ->
-# 25 "src/lexer.mll"
+# 24 "src/lexer.mll"
           ( FED )
-# 1125 "src/lexer.ml"
+# 1124 "src/lexer.ml"
 
   | 6 ->
-# 26 "src/lexer.mll"
+# 25 "src/lexer.mll"
            ( TYPE )
-# 1130 "src/lexer.ml"
+# 1129 "src/lexer.ml"
 
   | 7 ->
-# 27 "src/lexer.mll"
+# 26 "src/lexer.mll"
             ( AT )
-# 1135 "src/lexer.ml"
+# 1134 "src/lexer.ml"
 
   | 8 ->
-# 28 "src/lexer.mll"
+# 27 "src/lexer.mll"
             ( BOUND )
-# 1140 "src/lexer.ml"
+# 1139 "src/lexer.ml"
 
   | 9 ->
-# 29 "src/lexer.mll"
+# 28 "src/lexer.mll"
           ( PHI )
-# 1145 "src/lexer.ml"
+# 1144 "src/lexer.ml"
 
   | 10 ->
-# 30 "src/lexer.mll"
+# 29 "src/lexer.mll"
          ( MOVE )
-# 1150 "src/lexer.ml"
+# 1149 "src/lexer.ml"
 
   | 11 ->
-# 31 "src/lexer.mll"
+# 30 "src/lexer.mll"
         ( XOR )
-# 1155 "src/lexer.ml"
+# 1154 "src/lexer.ml"
 
   | 12 ->
-# 32 "src/lexer.mll"
+# 31 "src/lexer.mll"
            ( CALL )
-# 1160 "src/lexer.ml"
+# 1159 "src/lexer.ml"
 
   | 13 ->
-# 33 "src/lexer.mll"
+# 32 "src/lexer.mll"
         (ASSIGN)
-# 1165 "src/lexer.ml"
+# 1164 "src/lexer.ml"
 
   | 14 ->
-# 34 "src/lexer.mll"
+# 33 "src/lexer.mll"
             (LABEL)
-# 1170 "src/lexer.ml"
+# 1169 "src/lexer.ml"
 
   | 15 ->
-# 35 "src/lexer.mll"
+# 34 "src/lexer.mll"
              (RETURN)
-# 1175 "src/lexer.ml"
+# 1174 "src/lexer.ml"
 
   | 16 ->
-# 36 "src/lexer.mll"
+# 35 "src/lexer.mll"
            (GOTO)
-# 1180 "src/lexer.ml"
+# 1179 "src/lexer.ml"
 
   | 17 ->
-# 37 "src/lexer.mll"
+# 36 "src/lexer.mll"
          (IF)
-# 1185 "src/lexer.ml"
+# 1184 "src/lexer.ml"
 
   | 18 ->
-# 38 "src/lexer.mll"
+# 37 "src/lexer.mll"
            (TRUE)
-# 1190 "src/lexer.ml"
+# 1189 "src/lexer.ml"
 
   | 19 ->
-# 39 "src/lexer.mll"
+# 38 "src/lexer.mll"
             (FALSE)
-# 1195 "src/lexer.ml"
+# 1194 "src/lexer.ml"
 
   | 20 ->
-# 40 "src/lexer.mll"
+# 39 "src/lexer.mll"
        ( ID (0, Lexing.lexeme lexbuf) )
-# 1200 "src/lexer.ml"
+# 1199 "src/lexer.ml"
 
   | 21 ->
-# 41 "src/lexer.mll"
+# 40 "src/lexer.mll"
           ( read lexbuf )
-# 1205 "src/lexer.ml"
+# 1204 "src/lexer.ml"
 
   | 22 ->
-# 42 "src/lexer.mll"
+# 41 "src/lexer.mll"
         (LP)
-# 1210 "src/lexer.ml"
+# 1209 "src/lexer.ml"
 
   | 23 ->
-# 43 "src/lexer.mll"
+# 42 "src/lexer.mll"
         (RP)
-# 1215 "src/lexer.ml"
+# 1214 "src/lexer.ml"
 
   | 24 ->
-# 44 "src/lexer.mll"
+# 43 "src/lexer.mll"
         ( COLON )
-# 1220 "src/lexer.ml"
+# 1219 "src/lexer.ml"
 
   | 25 ->
-# 45 "src/lexer.mll"
+# 44 "src/lexer.mll"
         ( COMMA )
-# 1225 "src/lexer.ml"
+# 1224 "src/lexer.ml"
 
   | 26 ->
-# 46 "src/lexer.mll"
+# 45 "src/lexer.mll"
         ( SEMICOLON )
-# 1230 "src/lexer.ml"
+# 1229 "src/lexer.ml"
 
   | 27 ->
-# 47 "src/lexer.mll"
+# 46 "src/lexer.mll"
          (quotestr StrNonEsc lexbuf)
-# 1235 "src/lexer.ml"
+# 1234 "src/lexer.ml"
 
   | 28 ->
-# 48 "src/lexer.mll"
+# 47 "src/lexer.mll"
       ( raise (SyntaxError ("Unexpected char: " ^ Lexing.lexeme lexbuf)) )
-# 1240 "src/lexer.ml"
+# 1239 "src/lexer.ml"
 
   | 29 ->
-# 49 "src/lexer.mll"
+# 48 "src/lexer.mll"
            ( EOF )
-# 1245 "src/lexer.ml"
+# 1244 "src/lexer.ml"
 
   | 30 ->
-# 50 "src/lexer.mll"
+# 49 "src/lexer.mll"
         ( EOF )
-# 1250 "src/lexer.ml"
+# 1249 "src/lexer.ml"
 
   | __ocaml_lex_state -> lexbuf.Lexing.refill_buff lexbuf;
       __ocaml_lex_read_rec lexbuf __ocaml_lex_state
@@ -1257,11 +1256,11 @@ and __ocaml_lex_quotestr_rec pstr_status lexbuf __ocaml_lex_state =
   match Lexing.engine __ocaml_lex_tables __ocaml_lex_state lexbuf with
       | 0 ->
 let
-# 53 "src/lexer.mll"
+# 52 "src/lexer.mll"
             a
-# 1263 "src/lexer.ml"
+# 1262 "src/lexer.ml"
 = Lexing.sub_lexeme_char lexbuf lexbuf.Lexing.lex_start_pos in
-# 53 "src/lexer.mll"
+# 52 "src/lexer.mll"
               (
       match pstr_status with
       | NonStr -> quotestr StrNonEsc lexbuf
@@ -1273,15 +1272,15 @@ let
         quotestr StrNonEsc lexbuf
       end
   )
-# 1277 "src/lexer.ml"
+# 1276 "src/lexer.ml"
 
   | 1 ->
 let
-# 64 "src/lexer.mll"
+# 63 "src/lexer.mll"
             a
-# 1283 "src/lexer.ml"
+# 1282 "src/lexer.ml"
 = Lexing.sub_lexeme_char lexbuf lexbuf.Lexing.lex_start_pos in
-# 64 "src/lexer.mll"
+# 63 "src/lexer.mll"
              (
     match pstr_status with
     | StrNonEsc -> quotestr StrEsc lexbuf
@@ -1291,25 +1290,25 @@ let
       end
     | _ -> failwith "expected impossible"
   )
-# 1295 "src/lexer.ml"
+# 1294 "src/lexer.ml"
 
   | 2 ->
-# 73 "src/lexer.mll"
+# 72 "src/lexer.mll"
         (EOF)
-# 1300 "src/lexer.ml"
+# 1299 "src/lexer.ml"
 
   | 3 ->
 let
-# 74 "src/lexer.mll"
+# 73 "src/lexer.mll"
          a
-# 1306 "src/lexer.ml"
+# 1305 "src/lexer.ml"
 = Lexing.sub_lexeme_char lexbuf lexbuf.Lexing.lex_start_pos in
-# 74 "src/lexer.mll"
+# 73 "src/lexer.mll"
            (
     push_ptr @@ c2s a;
     quotestr pstr_status lexbuf
   )
-# 1313 "src/lexer.ml"
+# 1312 "src/lexer.ml"
 
   | __ocaml_lex_state -> lexbuf.Lexing.refill_buff lexbuf;
       __ocaml_lex_quotestr_rec pstr_status lexbuf __ocaml_lex_state

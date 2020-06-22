@@ -23,16 +23,29 @@ open Pretty
 let main() =
   match Array.to_list Sys.argv with
   | [_; _; filename] ->
-      let fdefs = parse filename in 
-      let main_def = M_int.find 0 fdefs in
+      let main, fdefs = parse filename in
+      begin
+      match main with
+      | None -> failwith "no main function found"
+      | Some {entry={globals; fn_bounds}; body=body} ->
       let open Pe in
-      let bbs = M_state.bindings (specialise main_def fdefs).out_bbs in
-      flip List.iter bbs @@ fun (_, xs) ->
-        Array.iter
-          (fun x -> print_endline @@ show_ir "" x)
-          (Darray.to_array @@ snd xs)
+      let pe_state = init_pe_state fdefs in
+      let suite, t =
+        specialise
+          pe_state
+          { args=[]
+          ; kwargs=[]
+          ; meth_bounds=fn_bounds
+          ; globals=globals
+          }
+          body
+      in
+      print_endline @@ show_t t;
+      flip List.iter suite @@ fun x ->
+        print_endline @@ show_ir "" x
       (* flip List.iter fdefs @@  fun (_, s) ->
           print_endline @@ show_func_def s *)
+      end
   | args -> 
     print_endline @@ "invalid arguments : " ^ String.concat " " args
 
