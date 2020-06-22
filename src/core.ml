@@ -6,11 +6,17 @@ type label = string scoped
 
 type var = string scoped
 type instrinsic =
-| IsTypeOf
+| IsInstanceOf
 | TypeOf
-| BoolOr
-| Upcast    (* has effect *)
-| Downcast  (* has effect if return true *)
+| BuildTuple
+| Upcast
+| Downcast
+| PolyAdd
+| IntIntAdd
+| FloatFloatAdd
+| IntFloatAdd
+| PolyEq
+
 
 type const =
 | NoneL
@@ -31,14 +37,13 @@ and t =
 | TypeT of t
 | CellT of t
 | NomT of string
-| NoneT
-| RecordT of (string, t) Smap.smap
 | UnionT of t list
 | FPtrT of fptr (* object type number *)
 | MethT of int
 | IntrinsicT of instrinsic
 | TopT
 | BottomT
+| NoneT
 
 and fptr = int
 
@@ -113,8 +118,9 @@ end)
 (* todo: to avoid infinite configutions, add a set of reached labels*)
 type pe_state = {
     (* global states *)
-    mutable meth_refs : int M_func_entry.t;
-    mutable meth_defs : ((meth_entry, ir list) def * t) M_int.t;
+    meth_refs : int M_func_entry.t ref;
+    meth_defs : ((meth_entry, ir list) def * t) M_int.t ref;
+    
     mutable out_bbs : (label * ir Darray.darray) M_state.t;
     mutable lbl_count : int;
     mutable meth_count : int;
@@ -138,3 +144,9 @@ let entry_label = (0, "entry")
 
 type meth_def = (meth_entry, ir list) def
 type fn_def = (fn_entry, basic_blocks) def
+
+let ieval : instrinsic -> value = fun i ->
+  {typ = IntrinsicT i; value = S (IntrinsicL i)}
+
+let teval : t -> value = fun t ->
+  {typ = TypeT t; value = S (TypeL t)}

@@ -2,38 +2,30 @@ open Eff
 open Core
 open Common
 
-exception NonStaticTypeCheck
-let rec type_less : t -> t -> bool = fun a b ->
-    match a, b with
-    | TopT, _ -> raise NonStaticTypeCheck
-    | _, TopT -> true
-    | BottomT, _ -> true
-    | UnionT xs, UnionT ys ->
-        let xs = List.concat @@ List.map (fun x -> List.map (type_less x) ys) xs in
-        if List.for_all (fun x -> x) xs then
-            true
-        else if List.for_all (fun x -> not x) xs  then
-            false
-        else
-            raise NonStaticTypeCheck
-    | x, UnionT xs ->
-        List.exists (type_less x) xs
-    | _ -> false
 
 let rec union_split (module S: St) bbs suite = fun xs ->
     let rec go = function
     | [] -> 
         Ir_block (specialise_instrs (module S: St) (bbs, suite))
     | (slot_idx, types)::tl ->
-    match S.it.slots.(slot_idx).value with
-    | S _ -> failwith "TODO1"
-    | D var  as v ->
+    match S.it.slots.(slot_idx) with
+    | {value=S _} -> failwith "TODO1"
+    | {value=D var as value} as old_slot ->
     let cases = flip List.map types @@ fun t ->
-        t, S.with_local (fun () ->
-            S.set_type (var, t); go tl)
+        t, S.with_local
+        (fun () ->
+            S.set_type (var, t);
+            let tl = go tl in
+            let downcast =
+                Ir_assign(
+                    var,
+                    Ir_call(Ir_s (ieval Downcast), [Ir_s (teval t); Ir_s old_slot], []))
+            in match tl with
+            | Ir_block tl -> Ir_block (downcast :: tl)
+            | a -> Ir_block [downcast; a])
     in
     let func = S.repr_eval (S (IntrinsicL TypeOf)) in
-    let arg = S.repr_eval v in
+    let arg = S.repr_eval value in
     let expr = Ir_call(Ir_s func, [Ir_s arg], []) in
     Ir_switch(expr, cases)
     in go xs
@@ -177,44 +169,19 @@ and specialise_instrs : (module St) -> basic_blocks * instr list -> ir list  =
         let args = List.map S.repr_eval args in
         let kwargs = Smap.map S.repr_eval kwargs in
         begin match bound, func, args, kwargs with
-        | Some bound,
-          {value=S(IntrinsicL IsTypeOf)},
-          [{typ=t1} as l; {value=S (TypeL t2)} as r],
-          [] ->
-            begin try 
-                let test = type_less t1 t2 in
-                let _ = S.set_var bound @@ fun _ -> {value=S(BoolL test); typ=bool_t}
-                in go tl
-            with NonStaticTypeCheck ->
-            let rt_tyck =
-                Ir_call(
-                    Ir_s (S.repr_eval @@ S(IntrinsicL IsTypeOf)),
-                    [Ir_s l; Ir_s r],
-                    []
-                )
-            in
-            (* case split for boolean *)
-            begin match l with
-            | {value=D lvar} ->
-                let true_clause =
-                    S.with_local @@ fun () ->
-                    let _ = S.set_var bound @@
-                        fun _ -> {value = S(BoolL true); typ=bool_t}
-                    in
-                    let _ = S.set_var lvar @@
-                        fun _ -> {l with typ=t2}
-                    in go tl
-                in
-                let false_clause =
-                    (* TODO: type difference *)
-                    S.with_local @@ fun () ->
-                    let _ = S.set_var bound @@
-                        fun _ -> {value = S(BoolL false); typ=bool_t}
-                    in go tl
-                in [Ir_if(rt_tyck, Ir_block true_clause, Ir_block false_clause)]
-            | _ -> failwith "TODO 10"
-            end (* match *)
-            end (* try *)
+        | Some bound, {value=S(IntrinsicL IsInstanceOf)},
+          [l; {value=S (TypeL t2)} as r], [] ->
+            Intrinsic_comp.intrinsic_isinstance
+                (fun () -> go tl) (module S: St) bound l r t2
+        | Some bound, {value = S(IntrinsicL PolyAdd)}, [l; r], [] ->
+            Intrinsic_comp.intrinsic_add
+                (fun () -> go tl) (module S: St) bound l r
+        | Some bound, {value = S(IntrinsicL BuildTuple)}, elts, [] ->
+            Intrinsic_comp.intrinsic_build_tuple
+                (fun () -> go tl) (module S: St) bound elts
+        | Some bound, {value = S(IntrinsicL PolyEq)}, [l; r], [] ->
+            Intrinsic_comp.intrinsic_eq
+                (fun () -> go tl) (module S: St) bound l r
         | _, {typ=FPtrT fptr}, args, kwargs ->
             static_call_no_inline (module S: St) (bbs, tl) bound fptr (args, kwargs)
         | _ -> failwith "TODO5"
@@ -247,7 +214,9 @@ and specialise : pe_state
     let _ = specialise_bb (module S: St) (body, entry_label) in
     let {out_bbs; ret} = S.it in
     let out_irs = ref [] in
-    let _ = flip List.iter (M_state.bindings out_bbs) @@ fun (_, (_, irs)) ->
+    let blocks = List.map snd (M_state.bindings out_bbs) in
+    let blocks = List.sort_uniq (fun (a, _) (b, _) -> compare a b) blocks in
+    let _ = flip List.iter blocks @@ fun (_, irs) ->
         flip Darray.iter irs @@ fun ir ->
             out_irs := ir :: !out_irs
     in
@@ -265,7 +234,7 @@ let init_pe_state : fn_def M_int.t (* all function pointers *) -> pe_state =
     ; n2i = []
     ; i2f = f_defs
     ; scope_level = 0
-    ; meth_refs = M_func_entry.empty
-    ; meth_defs = M_int.empty
+    ; meth_refs = ref M_func_entry.empty
+    ; meth_defs = ref M_int.empty
     ; meth_count = 0
     }

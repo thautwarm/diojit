@@ -4,11 +4,16 @@ open Common
 let show_sym (_, n) = n
 
 let show_intrinsic = function
-  | TypeOf -> "TypeOf"
-  | IsTypeOf -> "IsTypeOf"
-  | BoolOr -> "BoolOr"
+  | TypeOf -> "typeof"
+  | IsInstanceOf -> "isinstance"
   | Upcast -> "upcast"
   | Downcast -> "downcast"
+  | BuildTuple -> "buildtuple"
+  | PolyAdd -> "polyadd"
+  | IntIntAdd -> "intintadd"
+  | FloatFloatAdd -> "floatfloatadd"
+  | IntFloatAdd -> "intfloatadd"
+  | PolyEq -> "equal"
 
 let show_repr = function
   | D (_, n) -> n
@@ -17,9 +22,10 @@ let show_repr = function
   | S (StrL s) -> "str[" ^ s ^ "]"
   | S (BoolL true) -> "true"
   | S (BoolL false) -> "false"
-  | S (IntrinsicL intrin) -> show_intrinsic intrin
-  | S (MethL i) -> "meth[" ^ string_of_int i ^ "]"
-  | S (FPtrL i) -> "func[" ^ string_of_int i ^ "]"
+  | S (IntrinsicL _)
+  | S (MethL _)
+  | S (FPtrL _)
+  | S (TypeL _) -> "_"
   | S _ -> "<unsupported>"
 
 let show_instr =
@@ -77,7 +83,7 @@ let rec show_t = function
   | MethT i -> "meth[" ^ string_of_int i ^ "]"
   | NoneT -> "()"
   | IntrinsicT intrin -> "type[" ^ show_intrinsic intrin ^ "]"
-
+  | TupleT elts -> "(" ^ String.concat " * " (List.map show_t elts) ^ ")"
   | _ -> failwith "TODO9"
 
 let show_ann ((_, n), t) = n ^ ": " ^ show_t t

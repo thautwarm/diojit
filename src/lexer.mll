@@ -22,6 +22,9 @@ rule read = parse
   | "]" { RB }
   | "def" { DEF }
   | "fed" { FED }
+  | "-" { NEG }
+  | "+" { ADD }
+  | "isinstance" { ISA }
   | "type" { TYPE }
   | "@"     { AT }
   | "bound" { BOUND }

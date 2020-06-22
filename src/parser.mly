@@ -17,6 +17,9 @@ open Core
 %token LB
 %token RB
 %token XOR
+%token NEG
+%token ADD
+%token ISA
 %token COMMA
 %token COLON
 %token TRUE
@@ -53,12 +56,14 @@ prog : xs=list(func_def) EOF
     }
 ;
 
-typ : AT n=STRING { NomT n }
-     | AT n=ID { NomT (snd n) }
-     | TYPE LB t=typ RB { TypeT t }
-     | LP ts=separated_list(XOR, typ) RP { UnionT ts }
-     ;
+atom_typ : AT n=STRING { NomT n }
+         | AT n=ID { NomT (snd n) }
+         | TYPE LB t=typ RB { TypeT t }
+         ;
 
+typ :  atom_typ { $1 }
+    | atom_typ XOR separated_list(XOR, atom_typ) { UnionT ($1 :: $3) }
+    ;
 
 func_entry : LP args=separated_list(COMMA, ID) RP
        BOUND LB fn_bounds=separated_list(COMMA, ID) RB
@@ -95,11 +100,18 @@ repr : n=ID { D n }
      | TRUE { S (BoolL true) }
      | FALSE { S (BoolL false) }
      | t=typ  { S (TypeL t) }
+     | NEG i=INT { S (IntL (-i)) }
+     | NEG f=FLOAT { S (FloatL (-. f)) }
+     | ISA { S (IntrinsicL IsInstanceOf) }
+     | ADD { S (IntrinsicL PolyAdd) }
+     | ASSIGN { S (IntrinsicL PolyEq) }
      ;
 
 instr : CALL func=repr LP args=separated_list(COMMA, repr) RP
         { Call(None, func, args, [])}
-      | ID ASSIGN from=repr { Assign($1, from) }
+      | ID ASSIGN repr { Assign($1, $3) }
+      | ID ASSIGN LP elts=separated_list(COMMA, repr) RP
+        { Call(Some $1, S (IntrinsicL BuildTuple), elts, []) }
       | ID ASSIGN CALL func=repr LP args=separated_list(COMMA, repr) RP
         { Call(Some $1, func, args, []) }
       | RETURN v=repr {Return v}

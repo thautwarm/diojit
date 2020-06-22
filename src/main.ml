@@ -24,6 +24,7 @@ let main() =
   match Array.to_list Sys.argv with
   | [_; _; filename] ->
       let main, fdefs = parse filename in
+      
       begin
       match main with
       | None -> failwith "no main function found"
@@ -40,9 +41,17 @@ let main() =
           }
           body
       in
-      print_endline @@ "main return" ^ show_t t;
-      flip List.iter suite @@ fun x ->
-        print_endline @@ show_ir "" x
+      print_endline @@ "main returns" ^ show_t t;
+      (flip List.iter suite @@ fun x ->
+        print_endline @@ show_ir "" x);
+      print_newline();
+      (flip List.iter (M_int.bindings !(pe_state.meth_defs))
+        @@ fun (meth_id, (meth_def, t)) ->
+          Printf.printf "method id : %d\n" meth_id;
+          Printf.printf "returns : %s\n" @@ show_t t;
+          flip List.iter meth_def.body @@ fun ir ->
+            print_endline @@ show_ir "" ir
+      ) 
       (* flip List.iter fdefs @@  fun (_, s) ->
           print_endline @@ show_func_def s *)
       end

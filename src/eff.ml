@@ -73,12 +73,12 @@ module MkSt(X : sig val x : pe_state end) : St = struct
     
     let new_meth meth_spec def =
         let id = new_meth_id() in
-        it.meth_defs <- M_int.add id def it.meth_defs;
-        it.meth_refs <- M_func_entry.add meth_spec id it.meth_refs;
+        it.meth_defs := M_int.add id def !(it.meth_defs);
+        it.meth_refs := M_func_entry.add meth_spec id !(it.meth_refs);
         id
 
-    let search_meth_id entry = M_func_entry.find_opt entry it.meth_refs
-    let find_meth_def id = M_int.find id it.meth_defs
+    let search_meth_id entry = M_func_entry.find_opt entry !(it.meth_refs)
+    let find_meth_def id = M_int.find id !(it.meth_defs)
 
     let repr_eval = function
         | S c as a -> {value=a; typ=type_of_const c}

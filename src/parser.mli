@@ -11,10 +11,12 @@ type token =
   | RETURN
   | RB
   | PHI
+  | NEG
   | MOVE
   | LP
   | LB
   | LABEL
+  | ISA
   | INT of (int)
   | IF
   | ID of (Core.var)
@@ -30,6 +32,7 @@ type token =
   | BOUND
   | AT
   | ASSIGN
+  | ADD
 
 (* This exception is raised by the monolithic API functions. *)
 
