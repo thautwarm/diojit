@@ -14,7 +14,7 @@ let rec union_split (module S: St) bbs suite = fun xs ->
     let cases = flip List.map types @@ fun t ->
         t, S.with_local
         (fun () ->
-            S.set_type (var, t);
+            S.set_var var (fun it -> {it with typ=t});
             let tl = go tl in
             let downcast =
                 Ir_assign(
@@ -95,7 +95,9 @@ and specialise_bb : (module St) -> basic_blocks * label -> label =
     in
     let config = (jump_to, Array.copy S.it.slots) in
     match S.lookup_config config  with
-    | Some (lbl, _) -> lbl
+    | Some (lbl, _) ->
+        Printf.printf "haha? %s\n" @@ snd lbl;
+        lbl
     | None ->
     let (link_lbl, link_block) = S.add_config config in
     S.enter_block link_block;

@@ -7,7 +7,9 @@ fed
 
 def f(x) bound [b, i, j]
 label entry: PHI []
-    i = 0;
+    i = call + (0, 0);
+    j = call + (0, 0);
+    b = call = (0, 0);
     goto loop_check;
 label loop_check: PHI [
     loop_check: i <- j

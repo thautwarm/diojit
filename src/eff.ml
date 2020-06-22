@@ -42,7 +42,6 @@ module type St = sig
     val has_reached : label -> bool
     val with_local : (unit -> 'b) -> 'b
     val dynamicalize_all : unit -> unit
-    val set_type : (var * t) -> unit
     val enter_block: ir Darray.darray -> unit
     val add_instr : ir -> unit
     val add_return_type : t -> unit
@@ -148,13 +147,13 @@ module MkSt(X : sig val x : pe_state end) : St = struct
         List.iter (
             fun (n, i) ->
             let v = it.slots.(i) in
-            it.slots.(i) <- {typ = TopT; value = D n};
             match v with
             | {typ = BottomT; _} -> failwith "TODO7"
-            | {typ = TopT; _} | {typ = UnionT _; _} -> ()
+            | {typ = TopT; _} | {typ = UnionT _; _} -> it.slots.(i) <- {typ = TopT; value = D n};
             | {typ; value} ->
                 let func = repr_eval @@ S (IntrinsicL Upcast) in
                 let args = List.map repr_eval [S(TypeL typ); value] in
+                it.slots.(i) <- {typ = TopT; value = D n};
                 add_instr @@ Ir_assign(
                     n, 
                     Ir_call(
@@ -203,10 +202,7 @@ module MkSt(X : sig val x : pe_state end) : St = struct
     let make_config () = it.cur_lbl, Array.copy (it.slots)
 
     let lookup_config config = M_state.find_opt config it.out_bbs
-    
-    let set_type (var, t) =
-        let i = Smap.find var it.n2i in
-        it.slots.(i) <- {it.slots.(i) with typ = t}
+
 
     
     let set_var var lens =

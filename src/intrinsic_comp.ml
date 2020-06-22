@@ -24,7 +24,7 @@ let rec type_less : t -> t -> bool = fun a b ->
 
 
 let intrinsic_eq go_tl (module S: St) bound l r =
-    S.set_type (bound, bool_t);
+    S.set_var bound (fun _ -> {typ=bool_t; value = D bound});
     Ir_assign(bound, Ir_call(Ir_s (ieval PolyEq), [Ir_s l; Ir_s r], []))::go_tl()
 
 let intrinsic_build_tuple go_tl (module S: St) bound elts =
@@ -43,7 +43,7 @@ let intrinsic_build_tuple go_tl (module S: St) bound elts =
         S.set_var bound (fun _ -> {value = S (TupleL elts); typ = tuple_t});
         go_tl()
     | None ->
-        S.set_type (bound, tuple_t);
+        S.set_var bound (fun _ -> {value = D bound; typ = tuple_t});
         let elts = List.map (fun x -> Ir_s x) elts in
         Ir_assign(bound, Ir_call(Ir_s (ieval BuildTuple), elts, []))::go_tl()    
     
@@ -60,7 +60,7 @@ let intrinsic_add go_tl (module S: St) bound l r =
   | _ ->
     TopT, Ir_call(Ir_s (ieval PolyAdd), [Ir_s l; Ir_s r], [])
   in 
-  S.set_type(bound, t);
+  S.set_var bound (fun _ -> {typ = t; value = D bound});
   Ir_assign(bound, add)::go_tl()
 
 let intrinsic_isinstance go_tl (module S: St) bound l r t =
