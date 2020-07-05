@@ -1,9 +1,0 @@
-(ocamllex
-  (modules lexer))
-
-(menhir
-  (modules parser))
-
-(library
-  (name dynjit)
-  (public_name dynjit))

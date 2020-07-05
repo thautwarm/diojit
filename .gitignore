@@ -1,10 +1,4 @@
-.merlin
+bin/
+obj/
+.ionide/
 node_modules/
-_build
-_esy
-lib/
-_release
-*.byte
-*.native
-*.install
-esy.lock/
