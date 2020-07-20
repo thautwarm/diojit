@@ -16,3 +16,7 @@ and t =
 | TTop
 | TBot
 | TNone
+
+let f = function
+   | TFPtr a, _ | _, TFPtr a when a < 1 -> a
+   | _ -> 2

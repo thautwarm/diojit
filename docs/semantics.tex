@@ -6,7 +6,7 @@
 \usepackage{listings}
 \usepackage{natbib}
 \usepackage{mathtools}
-\lstset{language=Python, basicstyle=\itshape}
+\lstset{language=Python, mathescape, basicstyle=\itshape}
 \bibliographystyle{unsrtnat}
 
 \newcommand{\ddfrac}[3]{
@@ -73,7 +73,8 @@ A core part of Python VM instructions are given as follow
     \bnfmore{\bnfor \bnftd{JUMP} \bnfsp \bnftd{int}}\\
     \bnfmore{\bnfor \bnftd{CALL} \bnfsp \bnftd{int}}\\
     \bnfmore{\bnfor \bnftd{POP} \bnfsp \bnftd{int}} \\
-    \bnfmore{\bnfor \bnftd{ROT} \bnfsp \bnftd{int}}
+    \bnfmore{\bnfor \bnftd{ROT} \bnfsp \bnftd{int}} \\
+    \bnfmore{\bnfor \bnftd{RETURN}}
 \end{bnf*}
 
 
@@ -180,14 +181,20 @@ in form of \lstinline!getattr(str, "__getitem__")(s, i)!
 We also introduce some notations for abbreviations.
 
 \begin{enumerate}
-\item \lstinline!a.attr! denotes \lstinline!getattr(a, "attr")!.
-\item \lstinline!a.attr <- v! denotes \lstinline!setattr(a, "attr", v); a!.
-\lstinline!;! here is an operator to compose two expressions,
-which means we firstly perform \lstinline!setattr(a, "cell_contents", v)!, and consequently return \lstinline!a!.
-The same below.
-\item \lstinline!a["key"]! denotes \lstinline!getattr(type(a), "__getitem__")(a, "key")!
-\item \lstinline!a["key"] <- v! denotes \lstinline!getattr(type(a), "__setitem__")(a, "key", v);return a!
+\item \lstinline!a.attr! denotes \vbox{} \\
+     \lstinline!getattr(a, "attr")!
+\item \lstinline!a.attr $\leftarrow$ v! denotes \vbox{} \\
+     \lstinline!setattr(a, "attr", v); a! \\
+    \lstinline!;! here is an operator to compose two expressions. \\
+    We firstly perform \lstinline!setattr(a, "cell_contents", v)!, and consequently return \lstinline!a! \\
+    The same below.
+\item \lstinline!a["key"]! denotes \vbox{} \\
+    \lstinline!getattr(type(a), "__getitem__")(a, "key")!
+\item \lstinline!a["key"] $\leftarrow$ v! denotes \vbox{} \\
+     \lstinline!getattr(type(a), "__setitem__")(a, "key", v);a!
 \end{enumerate}.
+
+\newpage
 
 \section* {Operational Semantics for \textbf{CoreCPY}}
 
@@ -197,6 +204,8 @@ By introducing
     \item a store $\mathbf{\sigma}$,
     \item an instruction suite $\mathbf{I}$, and
     \item a function $const$ to map a literal in \textbf{CoreCPY} language to a Python object
+    \item a function $make\_local$ to create a Python dictionary from a given store $\mathbf{\sigma}$
+    \item $\sigma[n := val]$ will return a new store $\sigma^{'}$ instead of performing mutations.
 \end{itemize}
 we get capable of clarifying the semantics of \textbf{CoreCPY}.
 
@@ -206,22 +215,22 @@ we get capable of clarifying the semantics of \textbf{CoreCPY}.
 
 \begin{equation*}
 \begin{split}
-\frac{n \in \mathbf{localvar}}{\sigma \vdash_{r-val} \Rightarrow \sigma(n)}
+\frac{n \in \mathbf{localvar}}{\sigma \vdash_{r-val} n \Rightarrow \sigma(n)}
 & \;\;
-\frac{n \in \mathbf{cellvar}}{\sigma \vdash_{r-val} \Rightarrow \sigma(n).cell\_contents}
+\frac{n \in \mathbf{cellvar}}{\sigma \vdash_{r-val} n \Rightarrow \sigma(n).cell\_contents}
 \;\; \\ \\
-\frac{n \in \mathbf{freevar}}{\sigma \vdash_{r-val} \Rightarrow \sigma(n).cell\_contents}
+\frac{n \in \mathbf{freevar}}{\sigma \vdash_{r-val} n \Rightarrow \sigma(n).cell\_contents}
 & \;\;
-\frac{n \in \mathbf{globalvar}}{\sigma \vdash_{r-val} \Rightarrow globals()[n]}
+\frac{n \in \mathbf{globalvar}}{\sigma \vdash_{r-val} n \Rightarrow globals()[n]}
 \\
 \\
-\frac{n \in \mathbf{localvar}}{\sigma \vdash_{l-var} \Rightarrow \lambda v . v}
+\frac{n \in \mathbf{localvar}}{\sigma \vdash_{l-var} n \Rightarrow \lambda v . v}
 & \;\;
-\frac{n \in \mathbf{cellvar}}{\sigma \vdash_{l-var} \Rightarrow \lambda v . \sigma(n).cell\_contents \leftarrow v}
+\frac{n \in \mathbf{cellvar}}{\sigma \vdash_{l-var} n \Rightarrow \lambda v . \sigma(n).cell\_contents \leftarrow v}
 \;\; \\ \\
-\frac{n \in \mathbf{freevar}}{\sigma \vdash_{l-var} \Rightarrow \lambda v . \sigma(n).cell\_contents \leftarrow v}
+\frac{n \in \mathbf{freevar}}{\sigma \vdash_{l-var} n \Rightarrow \lambda v . \sigma(n).cell\_contents \leftarrow v}
 & \;\;
-\frac{n \in \mathbf{globalvar}}{\sigma \vdash_{l-var} \Rightarrow \lambda v. globals()[n] \leftarrow v}
+\frac{n \in \mathbf{globalvar}}{\sigma \vdash_{l-var} n \Rightarrow \lambda v. globals()[n] \leftarrow v}
 \end{split}
 \end{equation*}
 
@@ -272,12 +281,12 @@ we get capable of clarifying the semantics of \textbf{CoreCPY}.
 \frac{
     S = \mathbf{locals} :: S^{'}
 }{
-    S, \sigma \vdash_{instr} \mathbf{CALL}\;0 \Rightarrow (\sigma::S^{'}, \sigma)
+    S, \sigma \vdash_{instr} \mathbf{CALL}\;0 \Rightarrow (make\_local(\sigma)::S^{'}, \sigma)
 }
 \\
 \\
 \frac{
-    S = f :: a_1 :: a_2 :: \cdots :: a_n :: S^{'}
+    S = a_1 :: a_2 :: \cdots :: a_n :: f :: S^{'}
     \gap
     f(a_1, a_2, \cdots, a_n) = e
 }{
@@ -292,8 +301,8 @@ we get capable of clarifying the semantics of \textbf{CoreCPY}.
 
 \begin{equation*}
 \begin{split}
-\frac{ I(i) = \mathbf{JUMP} \; \mathit{off} \;\;\;\; I, S, \sigma \vdash_{jump} \mathit{off} => (return, \sigma^{'})}
-     { I, S, \sigma \vdash_{jump} i \Rightarrow (return, \sigma^{'})}
+\frac{ I(i) = \mathbf{JUMP} \; \mathit{off} \;\;\;\; I, S, \sigma \vdash_{jump} \mathit{off} \Rightarrow obj}
+     { I, S, \sigma \vdash_{jump} i \Rightarrow obj}
 \end{split}
 \end{equation*}
 
@@ -306,8 +315,8 @@ we get capable of clarifying the semantics of \textbf{CoreCPY}.
 }{
      type(obj).\_\_bool\_\_(obj) = True
      \gap
-    I, S^{'}, \sigma \vdash_{jump} \mathit{off} => (return, \sigma^{'})
-}{ I, S, \sigma \vdash_{jump} i \Rightarrow (return, \sigma^{'}) }
+    I, S^{'}, \sigma \vdash_{jump} \mathit{off} \Rightarrow obj
+}{ I, S, \sigma \vdash_{jump} i \Rightarrow obj }
 \\ \\
 \ddfrac{
     I(i) = \mathbf{JUMP\_IF\_TRUE} \; \mathit{off}
@@ -316,22 +325,30 @@ we get capable of clarifying the semantics of \textbf{CoreCPY}.
 }{
     type(obj).\_\_bool\_\_(obj) = False
     \gap
-    I, S^{'}, \sigma \vdash_{jump} \mathit{i}+1 => (return, \sigma^{'})
-}{ I, S, \sigma \vdash_{jump} i \Rightarrow (return, \sigma^{'})}
-\\ \\
-\ddfrac{
+    I, S^{'}, \sigma \vdash_{jump} \mathit{i}+1 \Rightarrow obj
+}{ I, S, \sigma \vdash_{jump} i \Rightarrow obj}
+\end{split}
+\end{equation*}
+
+\begin{equation*}
+\begin{split}
+& \dfrac{
     I(i) = \mathit{instr}
     \gap
-    \mathit{instr} \ne \mathbf{JUMP} \;\mathit{off}_1
-        \wedge
-    \mathit{instr} \ne \mathbf{JUMP\_IF\_TRUE} \;\mathit{off}_2
-}{
-    S, \sigma \vdash_{instr} \Rightarrow (S^{'}, \sigma^{'})
+    S, \sigma \vdash_{instr} instr \Rightarrow (S^{'}, \sigma^{'})
     \gap
-    I, S^{'}, \sigma^{'} \vdash_{jump} i + 1 \Rightarrow (return, \sigma^{''})
+    I, S^{'}, \sigma^{'} \vdash_{jump} i + 1 \Rightarrow obj
 }{
-    I, S, \sigma \vdash_{jump} \Rightarrow (return, \sigma^{''})
+    I, S, \sigma \vdash_{jump} i \Rightarrow obj
 }
+\\ \\
+& \dfrac{
+    I(i) = \mathit{RETURN}
+    \gap
+    S = obj :: S^{'}
+}{
+    I, S, \sigma \vdash_{jump} i \Rightarrow obj
+}    
 \end{split}
 \end{equation*}
 
