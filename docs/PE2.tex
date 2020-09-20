@@ -5,12 +5,16 @@
 \usepackage[epsilon, tsrm, altpo]{backnaur}
 \usepackage{listings}
 \usepackage{mathtools}
+\usepackage{bussproofs}
 \lstset{language=Python, showlines=true}
 \usepackage{natbib}
 
 \newcommand{\ddfrac}[3]{
-    & #1 \\
-    & \frac { #2 } { #3 }
+    \begin{prooftree}
+    \AxiomC{$#1$}
+    \AxiomC{$#2$}
+    \BinaryInfC{$#3$}
+    \end{prooftree}
 }
 
 \newcommand{\centerfrac}[4]{
@@ -195,7 +199,7 @@ def two_of_string(x: str):
 
 We contrive a switch statement for Python, to express the type dispatching semantics of generated C code.
 
-\textit{plus\_*} are the specialized method for \textbf{+} function. It is worth noting that every operation in Python bytecode is converted to
+\textit{plus\_*} are the specialized methods for \textbf{+} function. It is worth noting that every operation in Python bytecode is converted to
 a function call in \textbf{Core CPY}.
 
 
@@ -209,13 +213,13 @@ Core CPY is a simplification of Python bytecode instructions.
     \bnfprod{instr}{ \bnftd{Const} \bnfsp \bnftd{$\mathbf{constant}$}}\\
     \bnfmore{\bnfor \bnftd{Load} \bnfsp \bnftd{$\mathbf{symbol}$}}\\
     \bnfmore{\bnfor \bnftd{Store} \bnfsp \bnftd{$\mathbf{symbol}$}}\\
-    \bnfmore{\bnfor \bnftd{JumpIfTrue} \bnfsp \bnftd{$\mathbf{int}$}}\\
     \bnfmore{\bnfor \bnftd{Jump} \bnfsp \bnftd{$\mathbf{int}$}}\\
     \bnfmore{\bnfor \bnftd{Call} \bnfsp \bnftd{$\mathbf{int}$}}\\
     \bnfmore{\bnfor \bnftd{Rot} \bnfsp \bnftd{$\mathbf{int}$}} \\
+    \bnfmore{\bnfor \bnftd{Peek} \bnfsp \bnftd{$\mathbf{int}$}} \\
     \bnfmore{\bnfor \bnftd{Pop}} \\
-    \bnfmore{\bnfor \bnftd{Dup}} \\
-    \bnfmore{\bnfor \bnftd{Return}}
+    \bnfmore{\bnfor \bnftd{Return}} \\
+    \bnfmore{\bnfor \bnftd{JumpIf} \bnfsp \bnftd{$\mathbf{bool}$} \bnfsp \bnftd{$\mathbf{bool}$} \bnfsp \bnftd{$\mathbf{int}$}} 
 \end{bnf*}
 
 \newpage
@@ -291,9 +295,9 @@ The function call \textit{f(1.0)}, will initialize a value stack $[1.0, 2, "3.0"
 }
 \;\;
 & \frac{
-    a, \; \overbrace{\cdots}^{S^{'}} = S
+    a_1, \cdots, a_i, a_{peek}, \cdots = S
 }{
-    S \vdash_{instr} \mathbf{Dup} \Rightarrow a, \; \overbrace{\cdots}^{S}
+    S \vdash_{instr} \mathbf{Peek}\; i \Rightarrow a_{peek}, \; \overbrace{\cdots}^{S}
 }
 \\\\
 \frac{S \vdash_{r-val} n \Rightarrow a}
@@ -342,30 +346,45 @@ The function call \textit{f(1.0)}, will initialize a value stack $[1.0, 2, "3.0"
 \end{equation*}
 
 
-\begin{equation*}
-\begin{split}
 \ddfrac{
-    \mathbf{JumpIfTrue} \; \mathit{off} = I[i]
+    \mathbf{JumpIf} \; b \; False \; \mathit{off} = I[i]
     \gap
     a, \; \overbrace{\cdots}^{S^{'}} = S
 }{
-    True = \{bool(a)\}_{python}
-     \gap
+    b = \{bool(a)\}_{python}
+    \gap
     I, S^{'} \vdash_{jump} \mathit{off} \Rightarrow a_r
 }{ I, S \vdash_{jump} i \Rightarrow a_r }
-\\\\
+
 \ddfrac{
-    \mathbf{JumpIfTrue} \; \mathit{off} = I[i]
+    \mathbf{JumpIf} \; b \;False \mathit{off} = I[i]
     \gap
     a, \; \overbrace{\cdots}^{S^{'}} = S
 }{
-    False = \{bool(a)\}_{python}
+    b \neq \{bool(a)\}_{python}
     \gap
     I, S^{'} \vdash_{jump} \mathit{i}+1 \Rightarrow a_r
 }{ I, S \vdash_{jump} i \Rightarrow a_r}
-\end{split}
-\end{equation*}
 
+\ddfrac{
+    \mathbf{JumpIf} \; b \; True \; \mathit{off} = I[i]
+    \gap
+    a, \; \cdots = S
+}{
+    b = \{bool(a)\}_{python}
+    \gap
+    I, S \vdash_{jump} \mathit{off} \Rightarrow a_r
+}{ I, S \vdash_{jump} i \Rightarrow a_r }
+
+\ddfrac{
+    \mathbf{JumpIf} \; b \;True \mathit{off} = I[i]
+    \gap
+    a, \; \overbrace{\cdots}^{S^{'}} = S
+}{
+    b \neq \{bool(a)\}_{python}
+    \gap
+    I, S^{'} \vdash_{jump} \mathit{i}+1 \Rightarrow a_r
+}{ I, S \vdash_{jump} i \Rightarrow a_r}
 
 $$
 \dfrac{
@@ -388,6 +407,8 @@ $$
 }
 $$
 
+
+\newpage
 
 \section*{Dynjit IR}
 
@@ -414,6 +435,7 @@ Dynjit IR can be easily translated to C language or some Python-to-C language li
     \bnfmore{\bnfor \bnftd{\{} \bnfsp \bnftd{$\mathbf{stmts}$} \bnfsp \bnftd{\}}}\\
     \bnfprod{stmts}{\bnftd{$\mathbf{stmt}$} \bnfsp \bnftd{*}}\\
 \end{bnf*}
+(\textbf{type} can be any Python type, such as \textit{bool}, \textit{int}, but not composite type)
 
 
 \begin{itemize}
@@ -426,7 +448,7 @@ Dynjit IR can be easily translated to C language or some Python-to-C language li
     \item a sequence of instruction $\mathbf{I}$, can be indexed like $I[P]$.
     \item A map $\Delta$ to map a name $n$ to the index of value stack $\Delta(n)$. This is fixed for every function/instruction sequence.
     \item The side-effect-free substitution operation $\cdot[\cdot \leftarrow \cdot]$.
-          Given an offset of value stack $i \in \mathbb{N}$, an abstract value $v$,
+          Given an offset $i \in \mathbb{N}$ of the value stack, and an abstract value $v$,
           $S[i \leftarrow v]$ returns a new stack $S^{'}$ which equals to $S$ except $S[i]$ is $v$.
     \item \textit{specialize}, a function to perform partial evaluation for a function according to the argument types
 \end{itemize}
@@ -459,9 +481,9 @@ $$
 \dfrac{
     \mathit{lbl} = gensym()
     \gap
-    S \vdash P \Rightarrow L
-    \gap
     G \overset{mutate}{\leftarrow} (S, P) \mapsto \mathit{lbl}, \;\;  G
+    \gap
+    S \vdash P \Rightarrow L
 }{
     S \vdash^{*} P \Rightarrow \mathbf{label} \; \mathit{lbl} ; \; \overbrace{\cdots}^{L}
 }
@@ -532,9 +554,9 @@ $$
 }
 \\
 \frac{
-    \mathbf{Dup} = I[P] \gap
-    a , \; \overbrace{\cdots}^{S^{'}} = S \;\;\;\;
-    a, a, \; \overbrace{\cdots}^{S^{'}}  \vdash P + 1 \Rightarrow L
+    \mathbf{Peek}\; i = I[P] \gap
+    a_1, \cdots, a_i, a_{peek}, \cdots = S \;\;\;\;
+    a_{peek}, \; \overbrace{\cdots}^{S}  \vdash P + 1 \Rightarrow L
 }{
     S \vdash P \Rightarrow L
 }
@@ -562,8 +584,6 @@ $$
 \end{split}
 \end{equation*}
 
-\begin{equation*}
-\begin{split}
 \ddfrac{
     \mathbf{Store} \; n = I[P]
     \gap
@@ -575,11 +595,7 @@ $$
 }{
     S \vdash P \Rightarrow L
 }
-\end{split}
-\end{equation*}
 
-\begin{equation*}
-\begin{split}
 \ddfrac{
     \mathbf{Store} \; n = I[P]
     \gap
@@ -591,8 +607,6 @@ $$
 }{
     n = (n^{'}, t); \;  \overbrace{\cdots}^{L}
 }
-\end{split}
-\end{equation*}
 
 \vspace*{\baselineskip}
 $$
@@ -629,29 +643,46 @@ $$
 \end{equation*}
 
 
-\begin{equation*}
-\begin{split}
 \ddfrac{
-    \mathbf{JumpIfTrue} \; \mathit{off} = I[P]
+    \mathbf{JumpIf} \; b_1 \; False \; \mathit{off} = I[P]
+    \gap
+    (S \; b_2, bool), \; \overbrace{\cdots}^{S^{'}} = S
 }{
-    (S \; True, bool), \; \overbrace{\cdots}^{S^{'}} = S
+    b_1 = b_2
     \gap
     S^{'} \vdash^{*} \mathit{off} \Rightarrow L
 }{ S \vdash P \Rightarrow L }
-\end{split}
-\end{equation*}
 
-\begin{equation*}
-\begin{split}
 \ddfrac{
-    \mathbf{JumpIfTrue} \; \mathit{off} = I[P]
+    \mathbf{JumpIf} \; b_1 \; False \; \mathit{off} = I[P]
+    \gap
+    (S \; b_2, bool), \; \overbrace{\cdots}^{S^{'}} = S
 }{
-    (S \; False, bool), \; \overbrace{\cdots}^{S^{'}} = S
+    b_1 \neq b_2
     \gap
     S^{'} \vdash^{*} P + 1 \Rightarrow L
 }{ S \vdash P \Rightarrow L }
-\end{split}
-\end{equation*}
+
+
+\ddfrac{
+    \mathbf{JumpIf} \; b_1 \; True \; \mathit{off} = I[P]
+    \gap
+    (S \; b_2, bool), \; \cdots = S
+}{
+    b_1 = b_2
+    \gap
+    S \vdash^{*} \mathit{off} \Rightarrow L
+}{ S \vdash P \Rightarrow L }
+
+\ddfrac{
+    \mathbf{JumpIf} \; b_1 \; True \; \mathit{off} = I[P]
+    \gap
+    (S \; b_2, bool), \; \overbrace{\cdots}^{S^{'}} = S
+}{
+    b_1 \neq b_2
+    \gap
+    S^{'} \vdash^{*} P + 1 \Rightarrow L
+}{ S \vdash P \Rightarrow L }
 
 $$
 \dfrac{
