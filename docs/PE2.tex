@@ -430,9 +430,8 @@ Dynjit IR can be easily translated to C language or some Python-to-C language li
     \bnfmore{\bnfor \bnftd{goto} \bnfsp \bnftd{$\mbold{label}$}}\\
     \bnfmore{\bnfor \bnftd{label} \bnfsp \bnftd{$\mbold{label}$}}\\
     \bnfmore{\bnfor \bnftd{return} \bnfsp \bnftd{$\mathbf{expr}$}}\\
-    \bnfmore{\bnfor \bnftd{typecheck} \bnfts{(}  \bnftd{$\mathbf{expr}$} \bnfts{,} \bnfsp \bnftd{$\mathbf{type}$} \bnfts{)} \bnfsp \bnftd{then} \bnfsp \bnftd{$\mbold{expr}$} \bnfsp \bnftd{else} \bnfsp \bnftd{$\mbold{expr}$}}\\
-    \bnfmore{\bnfor \bnftd{if} \bnfsp \bnftd{$\mathbf{expr}$} \bnfsp \bnftd{then} \bnfsp \bnftd{$\mbold{expr}$} \bnfsp \bnftd{then} \bnfsp \bnftd{$\mbold{expr}$}}\\
-    \bnfmore{\bnfor \bnftd{\{} \bnfsp \bnftd{$\mathbf{stmts}$} \bnfsp \bnftd{\}}}\\
+    \bnfmore{\bnfor \bnftd{typecheck} \bnfts{(}  \bnftd{$\mathbf{expr}$} \bnfts{,} \bnfsp \bnftd{$\mathbf{type}$} \bnfts{)} \bnfsp \bnftd{then} \bnfsp \bnftd{$\mbold{stmts}$} \bnfsp \bnftd{else} \bnfsp \bnftd{$\mbold{stmts}$}}\\
+    \bnfmore{\bnfor \bnftd{if} \bnfsp \bnftd{$\mathbf{expr}$} \bnfsp \bnftd{then} \bnfsp \bnftd{$\mbold{stmts}$} \bnfsp \bnftd{else} \bnfsp \bnftd{$\mbold{stmts}$}}\\
     \bnfprod{stmts}{\bnftd{$\mathbf{stmt}$} \bnfsp \bnftd{*}}\\
 \end{bnf*}
 (\textbf{type} can be any Python type, such as \textit{bool}, \textit{int}, but not composite type)
@@ -449,7 +448,7 @@ Dynjit IR can be easily translated to C language or some Python-to-C language li
     \item A map $\Delta$ to map a name $n$ to the index of value stack $\Delta(n)$. This is fixed for every function/instruction sequence.
     \item The side-effect-free substitution operation $\cdot[\cdot \leftarrow \cdot]$.
           Given an offset $i \in \mathbb{N}$ of the value stack, and an abstract value $v$,
-          $S[i \leftarrow v]$ returns a new stack $S^{'}$ which equals to $S$ except $S[i]$ is $v$.
+          $S[i \leftarrow v]$ returns a new stack $S^{'}$ which equals to $S$ except $S[i]$ = $v$.
     \item \textit{specialize}, a function to perform partial evaluation for a function according to the argument types
 \end{itemize}
 
