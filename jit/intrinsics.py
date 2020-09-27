@@ -11,6 +11,10 @@ def i_deref(x):
 i_getitem = operator.getitem
 
 
+def i_exec_match(err, exc):
+    raise NotImplemented
+
+
 def i_buildtuple(*args):
     return args
 
@@ -27,12 +31,11 @@ def i_store(x, v):
     x.cell_contents = v
 
 
-def i_not(x):
-    return not x
+i_not = operator.not_
 
 
-def i_getattr(x, s):
-    return getattr(x, s)
+i_getattr = getattr
+i_setattr = setattr
 
 
 def i_getcells(s):
@@ -43,8 +46,7 @@ def i_pycall(f, *args):
     return f(*args)
 
 
-def i_isinstance(x, s):
-    return isinstance(x, s)
+i_isinstance = isinstance
 
 
 def i_iadd(a: int, b: int):
@@ -67,5 +69,4 @@ def i_beq(a: bool, b: bool):
     return a is b
 
 
-def i_asbool(a: object):
-    return bool(a)
+i_asbool = bool

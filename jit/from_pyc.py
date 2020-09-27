@@ -82,7 +82,7 @@ def _from_pyc(x: dis.Instruction, co: CodeType):
         # |attr|v|x|
         yield Rot(3)
         # |x|attr|v|
-        yield Constant(i_getattr)
+        yield Constant(i_setattr)
         # |x|attr|v|f|
         yield Rot(4)
         # |f|x|attr|v|
@@ -222,3 +222,34 @@ def _from_pyc(x: dis.Instruction, co: CodeType):
     elif x.opcode is opname.RETURN_VALUE:
         yield Return()
 
+    elif x.opcode is opname.COMPARE_OP:
+        cmp_name = dis.cmp_op[x.arg]
+        if cmp_name == "not_in":
+            yield Constant(operator.not_)
+            yield Rot(2)
+            yield Constant(operator.contains)
+            yield Rot(3)
+            yield Call(2)
+            yield Call(1)
+        elif cmp_name == "in":
+            yield Rot(2)
+            yield Constant(operator.contains)
+            yield Rot(3)
+            yield Call(2)
+        else:
+            yield Constant(_cmp_instrinsics.get(cmp_name))
+            yield Rot(3)
+            yield Call(2)
+    else:
+        raise ValueError(x.opname)
+
+_cmp_instrinsics = {
+        '<': operator.lt,
+        '>': operator.lt,
+        '<=': operator.le,
+        '>=': operator.ge,
+        '!=': operator.ne,
+        'is': operator.is_,
+        'is not': operator.is_not,
+        'exception match': i_exec_match
+}

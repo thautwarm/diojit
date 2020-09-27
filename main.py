@@ -1,6 +1,6 @@
 from jit.CoreCPY import *
 from jit.pe import Compiler
-from jit import types
+from jit import types, dynjit
 
 
 def f(x):
@@ -31,6 +31,7 @@ for e in from_pyc(dis.Bytecode(g)):
     print(e)
 #
 m = c.specialise(g, types.none_t, types.int_t, types.int_t)
-for e in (m.method.repr.c.__jit__):
+dj = m.method.repr.c.__jit__
+for e in dj:
     print(e)
 print(m.return_type)
