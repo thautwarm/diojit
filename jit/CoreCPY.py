@@ -45,7 +45,7 @@ class JumpIf:
 
 @dataclass(frozen=True)
 class Jump:
-    s: Symbol
+    lbl: Symbol
 
 
 @dataclass(frozen=True)
@@ -76,10 +76,10 @@ class Return:
 def from_pyc(co: dis.Bytecode):
     from jit.from_pyc import _from_pyc
     codeobj = co.codeobj
-    for i, each in enumerate(co):
+    for each in co:
         each: dis.Instruction = each
         if each.is_jump_target:
-            yield Label(i)
+            yield Label(each.offset)
 
         if each.opcode is opname.EXTENDED_ARG:
             # dis.Bytecode handles EXTENDED_ARG

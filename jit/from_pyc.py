@@ -1,43 +1,10 @@
 from jit.CoreCPY import *
 import jit.opname as opname
-import operator
-intrinsic_globals = globals
-intrinsic_locals = locals
-
-
-def intrinsic_deref(x):
-    return x.cell_contents
-
-
-intrinsic_item = operator.getitem
-
-
-def build_tuple(*args):
-    return args
-
-
-def build_list(*args):
-    return list(args)
-
-
-def intrinsic_setitem(x, i, v):
-    x[i] = v
-
-
-def intrinsic_store(x, v):
-    x.cell_contents = v
-
-
-def intrinsic_not(x):
-    return not x
-
-
-def intrinsic_attr(x, s):
-    return getattr(x, s)
+from jit.intrinsics import *
 
 
 def _from_pyc(x: dis.Instruction, co: CodeType):
-    hasfree = bool(co.co_freevars)
+    hasfree = 1
     if x.opcode is opname.LOAD_CONST:
         const = co.co_consts[x.arg]
         yield Constant(const)
@@ -46,12 +13,12 @@ def _from_pyc(x: dis.Instruction, co: CodeType):
     elif x.opcode is opname.LOAD_DEREF:
         len_cells = len(co.co_cellvars)
         if x.arg < len_cells:
-            yield Constant(intrinsic_deref)
+            yield Constant(i_deref)
             yield Load(x.arg + len(co.co_varnames) + hasfree)
             yield Call(1)
         else:
-            yield Constant(intrinsic_deref)
-            yield Constant(intrinsic_item)
+            yield Constant(i_deref)
+            yield Constant(i_getitem)
             yield Load(0)
             yield Constant(len_cells - x.arg)
             yield Call(2)
@@ -61,7 +28,7 @@ def _from_pyc(x: dis.Instruction, co: CodeType):
         if x.arg < len_cells:
             yield Load(x.arg + len(co.co_varnames) + hasfree)
         else:
-            yield Constant(intrinsic_item)
+            yield Constant(i_getitem)
             yield Load(0)
             yield Constant(len_cells - x.arg)
             yield Call(2)
@@ -71,15 +38,15 @@ def _from_pyc(x: dis.Instruction, co: CodeType):
     elif x.opcode is opname.STORE_DEREF:
         len_cells = len(co.co_cellvars)
         if x.arg < len_cells:
-            yield Constant(intrinsic_store)
+            yield Constant(i_store)
             yield Load(x.arg + len(co.co_varnames) + hasfree)
             yield Rot(3)
             yield Rot(3)
             yield Call(2)
             yield Pop()
         else:
-            yield Constant(intrinsic_store)
-            yield Constant(intrinsic_item)
+            yield Constant(i_store)
+            yield Constant(i_getitem)
             yield Load(0)
             yield Constant(len_cells - x.arg)
             yield Call(2)
@@ -89,20 +56,36 @@ def _from_pyc(x: dis.Instruction, co: CodeType):
             yield Pop()
     elif x.opcode is opname.LOAD_GLOBAL:
         name = co.co_names[x.arg]
-        yield Constant(intrinsic_item)
+        yield Constant(i_getitem)
         yield Constant(intrinsic_globals)
         yield Call(0)
         yield Constant(name)
         yield Call(2)
     elif x.opcode is opname.STORE_GLOBAL:
         name = co.co_names[x.arg]
-        yield Constant(intrinsic_setitem)
+        yield Constant(i_setitem)
         yield Constant(intrinsic_globals)
         yield Call(0)
         yield Constant(name)
         yield Rot(4)
         yield Rot(4)
         yield Rot(4)
+        yield Call(3)
+        yield Pop()
+
+    elif x.opcode is opname.STORE_ATTR:
+        # |v|x|
+        # need: |f|x|attr|v|
+        yield Constant(co.co_names[x.arg])
+        # |v|x|attr|
+        yield Rot(3)
+        # |attr|v|x|
+        yield Rot(3)
+        # |x|attr|v|
+        yield Constant(i_getattr)
+        # |x|attr|v|f|
+        yield Rot(4)
+        # |f|x|attr|v|
         yield Call(3)
         yield Pop()
 
@@ -128,14 +111,14 @@ def _from_pyc(x: dis.Instruction, co: CodeType):
     #  *_METHOD is treated as regular member lookup
     elif x.opcode is opname.CALL_FUNCTION or x.opcode is opname.LOAD_ATTR:
         attr = co.co_names[x.arg]
-        yield Constant(intrinsic_attr)
+        yield Constant(i_getattr)
         yield Rot(2)
         yield Constant(attr)
         yield Call(2)
 
     elif x.opcode is opname.CALL_FUNCTION or x.opcode is opname.CALL_METHOD:
         attr = co.co_names[x.arg]
-        yield Constant(intrinsic_attr)
+        yield Constant(i_getattr)
         yield Rot(2)
         yield Constant(attr)
         yield Call(2)
@@ -172,7 +155,7 @@ def _from_pyc(x: dis.Instruction, co: CodeType):
         yield Call(2)
 
     elif x.opcode is opname.BINARY_SUBSCR:
-        yield Constant(intrinsic_item)
+        yield Constant(i_getitem)
         yield Rot(3)
         yield Call(2)
 
@@ -227,12 +210,12 @@ def _from_pyc(x: dis.Instruction, co: CodeType):
         yield Call(2)
 
     elif x.opcode is opname.BUILD_TUPLE:
-        yield Constant(build_tuple)
+        yield Constant(i_buildtuple)
         yield Rot(x.arg + 1)
         yield Call(x.arg)
 
     elif x.opcode is opname.BUILD_LIST:
-        yield Constant(build_list)
+        yield Constant(i_buildlist)
         yield Rot(x.arg + 1)
         yield Call(x.arg)
 

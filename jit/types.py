@@ -1,9 +1,9 @@
 from __future__ import annotations
-from typing import Sequence, Union, Dict, Tuple
+from typing import Sequence, Union, Dict, Tuple, Set
 from dataclasses import dataclass
 import ctypes
 
-cell = type((lambda x: lambda : x)(1).__closure__[0])
+cell = type((lambda x: lambda: x)(1).__closure__[0])
 NoneType = type(None)
 
 
@@ -20,7 +20,7 @@ class RefT:
         return cell
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, unsafe_hash=True)
 class RecordT:
     xs: Sequence[Tuple[str, SurfT]]
 
@@ -29,10 +29,9 @@ class RecordT:
         return dict
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, unsafe_hash=True)
 class TupleT:
     xs: Sequence[SurfT]
-
 
     @staticmethod
     def to_py_type():
@@ -40,31 +39,15 @@ class TupleT:
 
 
 @dataclass(frozen=True)
-class BoolT:
-    pass
-
-    @staticmethod
-    def to_py_type():
-        return bool
-
-
-@dataclass(frozen=True)
-class NoneT:
-    pass
-
-    @staticmethod
-    def to_py_type():
-        return NoneType
-
-
-@dataclass(frozen=True)
 class ClosureT:
-    cells: T
+    celltype: T
     func: object
 
     @staticmethod
     def to_py_type():
         return JitClosure
+
+
 #
 # @dataclass(frozen=True)
 # class DefaultT:
@@ -75,25 +58,59 @@ class ClosureT:
 #     func: object
 
 
-@dataclass(frozen=True)
 class NomT:
     name: type
     members: Dict[str, T]
     static_members: Dict[str, T]
 
+    def __init__(self, name: type, members: Dict[str, T], static_members: Dict[str, T]):
+        self.name = name
+        self.members = members
+        self.static_members = static_members
+
     def to_py_type(self):
         return self.name
 
+    def __repr__(self):
+        return repr(self.name)
 
 @dataclass(frozen=True)
 class PrimT:
     o: object
 
+    def to_py_type(self):
+        return type(self.o)
+
 
 @dataclass(frozen=True)
 class TopT:
-    pass
 
+    @staticmethod
+    def to_py_type():
+        return object
+
+
+@dataclass(frozen=True)
+class TypeT:
+    type: SurfT
+
+    @staticmethod
+    def to_py_type():
+        return type
+
+
+@dataclass(frozen=True)
+class UnionT:
+    alts: Sequence[T]
+
+    @staticmethod
+    def to_py_type():
+        return TypeError
+
+
+bool_members = {}
+bool_static_members = {}
+bool_t = NomT(bool, bool_members, bool_static_members)
 
 int_members = {}
 int_static_members = {}
@@ -115,12 +132,13 @@ dict_members = {}
 dict_static_members = {}
 dict_t = NomT(dict, dict_members, dict_static_members)
 
-noms = dict(
-        dict=dict_t,
-        int=int_t,
-        float=float_t,
-        str=str_t,
-        tuple=tuple_t,
-)
-T = Union[RefT, TupleT, RecordT, BoolT, NoneT, ClosureT, NomT, PrimT, TopT]
-SurfT = Union[RefT, BoolT, NoneT, ClosureT, NomT, PrimT, TopT]
+none_members = {}
+none_static_members = {}
+none_t = NomT(NoneType, none_members, none_static_members)
+
+noms = {
+        dict: dict_t, int: int_t, float: float_t, str: str_t, tuple: tuple_t, bool: bool_t, NoneType: none_t
+}
+
+T = Union[RefT, TupleT, RecordT, ClosureT, NomT, PrimT, TopT, UnionT, TypeT]
+SurfT = Union[RefT, ClosureT, NomT, PrimT, TopT]

@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import NamedTuple, Union, Sequence, Type
 from dataclasses import dataclass
+from jit import types
 
 Symbol = object
 
@@ -20,7 +21,7 @@ Repr = Union[S, D]
 
 class AbstractValue(NamedTuple):
     repr: Repr
-    type: Type
+    type: types.T
 
 
 @dataclass(frozen=True)
@@ -34,7 +35,7 @@ Expr = Union[Call, AbstractValue]
 
 @dataclass(frozen=True)
 class Assign:
-    target: Symbol
+    target: AbstractValue
     expr: Expr
 
 
@@ -56,15 +57,7 @@ class Return:
 @dataclass(frozen=True)
 class TypeCheck:
     expr: Expr
-    type: Type
-    arm1: Sequence[Stmt]
-    arm2: Sequence[Stmt]
-
-
-@dataclass(frozen=True)
-class TypeCheck:
-    expr: Expr
-    type: Type
+    type: types.T
     arm1: Sequence[Stmt]
     arm2: Sequence[Stmt]
 
