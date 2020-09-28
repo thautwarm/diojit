@@ -57,14 +57,14 @@ def _from_pyc(x: dis.Instruction, co: CodeType):
     elif x.opcode is opname.LOAD_GLOBAL:
         name = co.co_names[x.arg]
         yield Constant(i_getitem)
-        yield Constant(intrinsic_globals)
+        yield Constant(i_globals)
         yield Call(0)
         yield Constant(name)
         yield Call(2)
     elif x.opcode is opname.STORE_GLOBAL:
         name = co.co_names[x.arg]
         yield Constant(i_setitem)
-        yield Constant(intrinsic_globals)
+        yield Constant(i_globals)
         yield Call(0)
         yield Constant(name)
         yield Rot(4)
@@ -109,19 +109,15 @@ def _from_pyc(x: dis.Instruction, co: CodeType):
         yield JumpIf(True, False, x.arg)
 
     #  *_METHOD is treated as regular member lookup
-    elif x.opcode is opname.CALL_FUNCTION or x.opcode is opname.LOAD_ATTR:
+    elif x.opcode is opname.LOAD_ATTR or x.opcode is opname.CALL_METHOD:
         attr = co.co_names[x.arg]
         yield Constant(i_getattr)
         yield Rot(2)
         yield Constant(attr)
         yield Call(2)
 
-    elif x.opcode is opname.CALL_FUNCTION or x.opcode is opname.CALL_METHOD:
-        attr = co.co_names[x.arg]
-        yield Constant(i_getattr)
-        yield Rot(2)
-        yield Constant(attr)
-        yield Call(2)
+    elif x.opcode is opname.CALL_FUNCTION:
+        yield Call(x.arg)
 
     elif x.opcode is opname.ROT_TWO:
         yield Rot(2)

@@ -1,7 +1,7 @@
 import operator
 
-intrinsic_globals = globals
-intrinsic_locals = locals
+i_globals = globals
+i_locals = locals
 
 
 def i_deref(x):
@@ -32,7 +32,6 @@ def i_store(x, v):
 
 
 i_not = operator.not_
-
 
 i_getattr = getattr
 i_setattr = setattr
@@ -67,6 +66,10 @@ def i_sext(a: int):
 
 def i_beq(a: bool, b: bool):
     return a is b
+
+
+def i_tupleget(a: tuple, b: int):
+    return a[b]
 
 
 i_asbool = bool

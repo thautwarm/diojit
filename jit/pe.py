@@ -1,5 +1,5 @@
-from jit import CoreCPY, types, dynjit, stack, prims
-from jit.call_prims import padd, pinst, NO_SPECIALIZATION
+from jit import CoreCPY, types, dynjit, stack, prims, intrinsics
+from jit.call_prims import padd, pinst, pgetitem, NO_SPECIALIZATION
 from typing import List, Optional
 from dataclasses import dataclass
 import dis
@@ -39,7 +39,11 @@ class Compiler:
             self.corecpy[func_obj] = I
 
         (S) = stack.construct([dynjit.AbstractValue(dynjit.D(i), a) for i, a in enumerate(arg_types)][::-1])
-        return_types, code = self.partial_evaluate(G, I, S)
+        glob: dict = getattr(func_obj, '__globals__')
+        glob = {k: glob[k] for k in glob.get("__fix__", ())}
+        glob_type = prims.ct(glob)
+        glob_abs_val = dynjit.AbstractValue(dynjit.S(glob), glob_type)
+        return_types, code = self.partial_evaluate(glob_abs_val, G, I, S)
         if len(return_types) == 1:
             ret_t = return_types[0]
         else:
@@ -51,7 +55,7 @@ class Compiler:
         self.methods[key] = m
         return m
 
-    def partial_evaluate(self, G, I, S):
+    def partial_evaluate(self, glob_val: dynjit.AbstractValue, G, I, S):
         def gensym(n):
             r = n[0]
             n[0] += 1
@@ -221,16 +225,20 @@ class Compiler:
                 yield dynjit.Return(a)
                 return
 
+        def call_prim(infer, prim_func, args, s, p):
+            # print(prim_func is intrinsics.i_globals, '<<<')
+            if padd.cond(prim_func, args):
+                ret = yield from padd.spec(infer, args, s, p)
+            elif pinst.cond(prim_func, args):
+                ret = yield from pinst.spec(infer, args, s, p)
+            elif prim_func is intrinsics.i_globals and len(args) == 0:
+                s = stack.cons(glob_val, s)
+                ret = (yield from infer(s, p + 1))
+            elif pgetitem.cond(prim_func, args):
+                ret = yield from pgetitem.spec(infer, args, s, p)
+            else:
+                ret = NO_SPECIALIZATION
+
+            return ret
+
         return return_types, list(infer(S, 0))
-
-
-def call_prim(infer, prim_func, args, s, p):
-    if padd.cond(prim_func, args):
-        ret = yield from padd.spec(infer, args, s, p)
-
-    elif pinst.cond(prim_func, args):
-        ret = yield from pinst.spec(infer, args, s, p)
-    else:
-        ret = NO_SPECIALIZATION
-
-    return ret

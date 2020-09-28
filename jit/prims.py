@@ -1,17 +1,30 @@
 from jit import types, dynjit
 from jit.intrinsics import *
+import types as pytypes
 
 prim_types = {}
 
 
 def ct2(ac):
+    # noinspection PyTypeChecker
+    if isinstance(ac, pytypes.FunctionType):
+        # noinspection PyUnresolvedReferences
+        celltype = ct(ac.__closure__)
+        return types.ClosureT(celltype, ac)
+
+    if isinstance(ac, types.CellType):
+        return types.RefT(ct2(ac.cell_contents))
+
     a = types.noms.get(type(ac))
     if a is not None:
         return a
-
-    a = prim_types.get(ac)
-    if a is not None:
-        return a
+    try:
+        a = prim_types.get(ac)
+        if a is not None:
+            return a
+    except TypeError:
+        # unhashable:
+        pass
 
     return types.TopT()
 
@@ -19,6 +32,8 @@ def ct2(ac):
 def ct(ac):
     if isinstance(ac, tuple):
         return types.TupleT(tuple(map(ct2, ac)))
+    if isinstance(ac, dict):
+        return types.RecordT(tuple((k, ct2(v)) for k, v in ac.items()))
     return ct2(ac)
 
 
@@ -40,3 +55,6 @@ v_sconcat = define_prim(i_sconcat)
 v_sext = define_prim(i_sext)
 v_asbool = define_prim(i_asbool)
 v_beq = define_prim(i_beq)
+v_tupleget = define_prim(i_tupleget)
+v_globals = define_prim(i_globals)
+v_getitem = define_prim(i_getitem)

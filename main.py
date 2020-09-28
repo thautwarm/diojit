@@ -20,11 +20,17 @@ def f():
 
 c = Compiler()
 
+__fix__ = ['ff', 'g']
+
+
+def ff():
+    return "a"
+
 
 def g(x, y):
     if x < 3:
         return x + y
-    return "a"
+    return ff()
 
 
 for e in from_pyc(dis.Bytecode(g)):
@@ -32,6 +38,21 @@ for e in from_pyc(dis.Bytecode(g)):
 #
 m = c.specialise(g, types.none_t, types.int_t, types.int_t)
 dj = m.method.repr.c.__jit__
-for e in dj:
+dynjit.pprint(dj)
+print(m.return_type)
+
+print('+++++++++++++++++++++++++')
+
+def g(x, y):
+    if x < 3:
+        return x + y
+    return g(2, y)
+
+
+for e in from_pyc(dis.Bytecode(g)):
     print(e)
+#
+m = c.specialise(g, types.none_t, types.int_t, types.int_t)
+dj = m.method.repr.c.__jit__
+dynjit.pprint(dj)
 print(m.return_type)

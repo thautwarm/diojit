@@ -2,8 +2,9 @@ from __future__ import annotations
 from typing import Sequence, Union, Dict, Tuple, Set
 from dataclasses import dataclass
 import ctypes
+import types as pytypes
 
-cell = type((lambda x: lambda: x)(1).__closure__[0])
+CellType = type((lambda x: lambda: x)(1).__closure__[0])
 NoneType = type(None)
 
 
@@ -17,7 +18,10 @@ class RefT:
 
     @staticmethod
     def to_py_type():
-        return cell
+        return CellType
+
+    def __repr__(self):
+        return f'ref<{self.x!r}>'
 
 
 @dataclass(frozen=True, unsafe_hash=True)
@@ -28,6 +32,9 @@ class RecordT:
     def to_py_type():
         return dict
 
+    def __repr__(self):
+        return '{{{}}}'.format(','.join(f'{k}: {t!r}' for k, t in self.xs))
+
 
 @dataclass(frozen=True, unsafe_hash=True)
 class TupleT:
@@ -36,6 +43,9 @@ class TupleT:
     @staticmethod
     def to_py_type():
         return tuple
+
+    def __repr__(self):
+        return '<{}>'.format(','.join(map(repr, self.xs)))
 
 
 @dataclass(frozen=True)
@@ -46,6 +56,9 @@ class ClosureT:
     @staticmethod
     def to_py_type():
         return JitClosure
+
+    def __repr__(self):
+        return f'closure<{self.celltype!r}, {self.func.__name__}>'
 
 
 #
@@ -72,7 +85,8 @@ class NomT:
         return self.name
 
     def __repr__(self):
-        return repr(self.name)
+        return f'{self.name.__module__}.{self.name.__name__}'
+
 
 @dataclass(frozen=True)
 class PrimT:
@@ -81,6 +95,12 @@ class PrimT:
     def to_py_type(self):
         return type(self.o)
 
+    def __repr__(self):
+        # noinspection PyTypeChecker
+        # if isinstance(self.o, (pytypes.FunctionType, pytypes.BuiltinFunctionType)):
+        #     s = self.o.__name__
+        return f'{self.o.__name__}'
+
 
 @dataclass(frozen=True)
 class TopT:
@@ -88,6 +108,9 @@ class TopT:
     @staticmethod
     def to_py_type():
         return object
+
+    def __repr__(self):
+        return 'top'
 
 
 @dataclass(frozen=True)
@@ -98,6 +121,9 @@ class TypeT:
     def to_py_type():
         return type
 
+    def __repr__(self):
+        return f'type<{self.type}>'
+
 
 @dataclass(frozen=True)
 class UnionT:
@@ -106,6 +132,9 @@ class UnionT:
     @staticmethod
     def to_py_type():
         return TypeError
+
+    def __repr__(self):
+        return '|'.join(map(repr, self.alts))
 
 
 bool_members = {}
