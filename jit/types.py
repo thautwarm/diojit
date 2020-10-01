@@ -1,18 +1,22 @@
 from __future__ import annotations
-from typing import Sequence, Union, Dict, Tuple, Set
+from typing import Sequence, Dict, Set
+from typing import Union, TYPE_CHECKING
 from dataclasses import dataclass
 import ctypes
 import types as pytypes
 
-CellType = type((lambda x: lambda: x)(1).__closure__[0])
+if TYPE_CHECKING:
+    from jit import dynjit
+
+cell = CellType = type((lambda x: lambda: x)(1).__closure__[0])
 NoneType = type(None)
 
 
 class JitClosure(ctypes.Structure):
-    _fields_ = [("free", ctypes.py_object), ('fptr', ctypes.py_object)]
+    _fields_ = [("free", ctypes.py_object), ("fptr", ctypes.py_object)]
 
 
-@dataclass(frozen=True)
+@dataclass(eq=True, frozen=True)
 class RefT:
     x: T
 
@@ -21,22 +25,24 @@ class RefT:
         return CellType
 
     def __repr__(self):
-        return f'ref<{self.x!r}>'
+        return f"ref<{self.x!r}>"
 
 
-@dataclass(frozen=True, unsafe_hash=True)
+@dataclass(eq=True, frozen=True, unsafe_hash=True)
 class RecordT:
-    xs: Sequence[Tuple[str, SurfT]]
+    fix: Dict[str, SurfT]
 
     @staticmethod
     def to_py_type():
         return dict
 
     def __repr__(self):
-        return '{{{}}}'.format(','.join(f'{k}: {t!r}' for k, t in self.xs))
+        return "{{{}}}".format(
+            ",".join(f"{k}: {t!r}" for k, t in self.fix.items())
+        )
 
 
-@dataclass(frozen=True, unsafe_hash=True)
+@dataclass(eq=True, frozen=True, unsafe_hash=True)
 class TupleT:
     xs: Sequence[SurfT]
 
@@ -45,20 +51,33 @@ class TupleT:
         return tuple
 
     def __repr__(self):
-        return '<{}>'.format(','.join(map(repr, self.xs)))
+        return "<{}>".format(",".join(map(repr, self.xs)))
 
 
-@dataclass(frozen=True)
-class ClosureT:
-    celltype: T
-    func: object
+@dataclass(frozen=True, eq=True)
+class FPtrT:
+    func: pytypes.FunctionType
 
     @staticmethod
     def to_py_type():
-        return JitClosure
+        return pytypes.FunctionType
 
     def __repr__(self):
-        return f'closure<{self.celltype!r}, {self.func.__name__}>'
+        return f"{self.func.__name__}"
+
+
+@dataclass(frozen=True, eq=True)
+class MethT:
+    self: T
+    func: T
+
+    @staticmethod
+    def to_py_type():
+        # TODO: a cython structure
+        return pytypes.MethodType
+
+    def __repr__(self):
+        return f"{self.func!r}({self.self!r})"
 
 
 #
@@ -73,10 +92,15 @@ class ClosureT:
 
 class NomT:
     name: type
-    members: Dict[str, T]
-    static_members: Dict[str, T]
+    members: Dict[str, dynjit.Expr]
+    static_members: Dict[str, dynjit.Expr]
 
-    def __init__(self, name: type, members: Dict[str, T], static_members: Dict[str, T]):
+    def __init__(
+        self,
+        name: type,
+        members: Dict[str, dynjit.Expr],
+        static_members: Dict[str, dynjit.Expr],
+    ):
         self.name = name
         self.members = members
         self.static_members = static_members
@@ -85,10 +109,10 @@ class NomT:
         return self.name
 
     def __repr__(self):
-        return f'{self.name.__module__}.{self.name.__name__}'
+        return f"{self.name.__module__}.{self.name.__name__}"
 
 
-@dataclass(frozen=True)
+@dataclass(eq=True, frozen=True)
 class PrimT:
     o: object
 
@@ -99,21 +123,30 @@ class PrimT:
         # noinspection PyTypeChecker
         # if isinstance(self.o, (pytypes.FunctionType, pytypes.BuiltinFunctionType)):
         #     s = self.o.__name__
-        return f'{self.o.__name__}'
+        return f"{self.o.__name__}"
 
 
-@dataclass(frozen=True)
+@dataclass(eq=True, frozen=True)
+class BottomT:
+    @staticmethod
+    def to_py_type():
+        raise NotImplementedError
+
+    def __repr__(self):
+        return "bot"
+
+
+@dataclass(eq=True, frozen=True)
 class TopT:
-
     @staticmethod
     def to_py_type():
         return object
 
     def __repr__(self):
-        return 'top'
+        return "top"
 
 
-@dataclass(frozen=True)
+@dataclass(eq=True, frozen=True)
 class TypeT:
     type: SurfT
 
@@ -122,19 +155,19 @@ class TypeT:
         return type
 
     def __repr__(self):
-        return f'type<{self.type}>'
+        return f"type<{self.type}>"
 
 
-@dataclass(frozen=True)
+@dataclass(eq=True, frozen=True)
 class UnionT:
-    alts: Sequence[T]
+    alts: Set[T]
 
     @staticmethod
     def to_py_type():
         return TypeError
 
     def __repr__(self):
-        return '|'.join(map(repr, self.alts))
+        return "|".join(map(repr, self.alts))
 
 
 bool_members = {}
@@ -165,9 +198,42 @@ none_members = {}
 none_static_members = {}
 none_t = NomT(NoneType, none_members, none_static_members)
 
+list_members = {}
+list_static_members = {}
+list_t = NomT(list, list_members, list_static_members)
+
+cell_members = {}
+cell_static_members = {}
+cell_t = NomT(cell, cell_members, cell_static_members)
+
+type_members = {}
+type_static_members = {}
+type_t = NomT(type, type_members, type_static_members)
+
 noms = {
-        dict: dict_t, int: int_t, float: float_t, str: str_t, tuple: tuple_t, bool: bool_t, NoneType: none_t
+    dict: dict_t,
+    int: int_t,
+    float: float_t,
+    str: str_t,
+    tuple: tuple_t,
+    bool: bool_t,
+    NoneType: none_t,
+    cell: cell_t,
+    type: type_t,
+    list: list_t
 }
 
-T = Union[RefT, TupleT, RecordT, ClosureT, NomT, PrimT, TopT, UnionT, TypeT]
-SurfT = Union[RefT, ClosureT, NomT, PrimT, TopT]
+T = Union[
+    RefT,
+    TupleT,
+    RecordT,
+    FPtrT,
+    NomT,
+    PrimT,
+    TopT,
+    UnionT,
+    TypeT,
+    BottomT,
+    MethT,
+]
+SurfT = Union[RefT, FPtrT, NomT, PrimT, TopT, BottomT, MethT]

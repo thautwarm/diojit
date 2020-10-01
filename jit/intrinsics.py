@@ -64,6 +64,10 @@ def i_sext(a: int):
     return float(a)
 
 
+def i_strunc(a: float):
+    return int(a)
+
+
 def i_beq(a: bool, b: bool):
     return a is b
 
@@ -72,4 +76,29 @@ def i_tupleget(a: tuple, b: int):
     return a[b]
 
 
-i_asbool = bool
+_call_types = {}
+
+
+def i_parseint(a: str):
+    return int(a)
+
+
+def i_mkcell(v):
+    # make a cell that `cell.cell_contents is v`.
+    raise NotImplemented
+
+
+def i_mkfunc(*args, flag):
+    raise NotImplemented
+
+
+def i_mkmethod(self, func):
+    raise NotImplemented
+
+
+def i_asint(i):
+    return int(i)
+
+
+def i_asbool(i):
+    return bool(i)

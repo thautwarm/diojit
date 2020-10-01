@@ -1,39 +1,51 @@
 from jit import types, dynjit
 from jit.intrinsics import *
 import types as pytypes
+from collections.abc import Mapping
 
 prim_types = {}
 
 
 def ct2(ac):
     # noinspection PyTypeChecker
-    if isinstance(ac, pytypes.FunctionType):
-        # noinspection PyUnresolvedReferences
-        celltype = ct(ac.__closure__)
-        return types.ClosureT(celltype, ac)
-
-    if isinstance(ac, types.CellType):
-        return types.RefT(ct2(ac.cell_contents))
-
-    a = types.noms.get(type(ac))
-    if a is not None:
-        return a
     try:
         a = prim_types.get(ac)
         if a is not None:
             return a
     except TypeError:
-        # unhashable:
+        # unhashable
         pass
+
+    if isinstance(ac, pytypes.FunctionType):
+        # noinspection PyUnresolvedReferences
+        if ac.__closure__:
+            raise NotImplementedError
+        return types.FPtrT(ac)
+
+    a = types.noms.get(type(ac))
+    if a is not None:
+        return a
 
     return types.TopT()
 
 
-def ct(ac):
+def ct1(ac):
     if isinstance(ac, tuple):
         return types.TupleT(tuple(map(ct2, ac)))
-    if isinstance(ac, dict):
-        return types.RecordT(tuple((k, ct2(v)) for k, v in ac.items()))
+    if isinstance(ac, type):
+        t = types.noms.get(ac)
+        if t:
+            return types.TypeT(t)
+        return types.type_t
+    return ct2(ac)
+
+
+def ct(ac):
+    if isinstance(ac, Mapping):
+        fixed = ac.get("__fix__")
+        if fixed:
+            return types.RecordT({k: ct1(ac[k]) for k in fixed})
+
     return ct2(ac)
 
 
@@ -58,3 +70,19 @@ v_beq = define_prim(i_beq)
 v_tupleget = define_prim(i_tupleget)
 v_globals = define_prim(i_globals)
 v_getitem = define_prim(i_getitem)
+v_asint = define_prim(i_asint)
+v_strunc = define_prim(i_strunc)
+v_parseint = define_prim(i_parseint)
+v_mkcell = define_prim(i_mkcell)
+v_storeref = define_prim(i_store)
+v_mkfunc = define_prim(i_mkfunc)
+v_mkmethod = define_prim(i_mkmethod)
+v_buildlist = define_prim(i_buildlist)
+v_listappend = define_prim(list.append)
+
+
+v_none = dynjit.AbstractValue(dynjit.S(None), types.none_t)
+
+
+def mk_v_str(s: str):
+    return dynjit.AbstractValue(dynjit.S(s), types.str_t)

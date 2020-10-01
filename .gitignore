@@ -4,6 +4,7 @@ obj/
 node_modules/
 .fake
 .idea/
+typeshed/
 
 **__pycache__/
 dev_test/

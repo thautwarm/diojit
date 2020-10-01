@@ -1,8 +1,9 @@
 from __future__ import annotations
-from typing import NamedTuple, Union, Sequence, Type
-from dataclasses import dataclass
-from jit import types
+from typing import NamedTuple, Union, Sequence, Type, Optional, TYPE_CHECKING
+from dataclasses import dataclass, field
 import sys
+if TYPE_CHECKING:
+    from jit import types
 
 Symbol = object
 
@@ -37,14 +38,21 @@ class AbstractValue(NamedTuple):
     def __repr__(self):
         return f'<{self.type}>{self.repr}'
 
+    def with_type(self, ty: types.T):
+        return AbstractValue(self.repr, ty)
+
 
 @dataclass(frozen=True)
 class Call:
     f: Expr
     args: Sequence[Expr]
+    type: types.T = field(default=None)
 
     def __repr__(self):
         return '{}({})'.format(repr(self.f), ', '.join(map(repr, self.args)))
+
+    def with_type(self, ty: types.T):
+        return Call(self.f, self.args, ty)
 
 
 Expr = Union[Call, AbstractValue]
@@ -52,7 +60,7 @@ Expr = Union[Call, AbstractValue]
 
 @dataclass(frozen=True)
 class Assign:
-    target: AbstractValue
+    target: Optional[AbstractValue]
     expr: Expr
 
 
@@ -95,10 +103,10 @@ def pprint(xs: Sequence[Stmt], io=sys.stdout.write):
 
 
 def pretty(io, stmt, indent):
-    io(' ' * indent)
+    prefix0 = ' ' * indent
+    io(prefix0)
     if isinstance(stmt, Assign):
-        io("{} = {}".format(repr(stmt.target), repr(stmt.expr)))
-        io('\n')
+        io("{} = {}\n".format(repr(stmt.target), repr(stmt.expr)))
 
     elif isinstance(stmt, Goto):
         io("goto ")
@@ -119,14 +127,15 @@ def pretty(io, stmt, indent):
         io('if ')
         io(repr(stmt.cond))
         io('\n')
-        prefix = ' ' * (indent + 2)
         for each in stmt.arm1:
-            io(prefix)
             pretty(io, each, indent + 2)
+        io(prefix0)
+
         io('else\n')
         for each in stmt.arm2:
-            io(prefix)
             pretty(io, each, indent + 2)
+        if not stmt.arm2:
+            io('\n')
 
     elif isinstance(stmt, TypeCheck):
         io('typecase ')
@@ -134,12 +143,18 @@ def pretty(io, stmt, indent):
         io(' hastype ')
         io(repr(stmt.type))
         io('\n')
-        prefix = ' ' * (indent + 2)
         for each in stmt.arm1:
-            io(prefix)
             pretty(io, each, indent + 2)
+        io(prefix0)
+
         io('else\n')
         for each in stmt.arm2:
-            io(prefix)
             pretty(io, each, indent + 2)
-
+        if not stmt.arm2:
+            io('\n')
+    elif isinstance(stmt, Goto):
+        io('goto ')
+        io(repr(stmt.lbl))
+        io('\n')
+    else:
+        raise TypeError(stmt)

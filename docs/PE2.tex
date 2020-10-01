@@ -414,6 +414,46 @@ $$
 
 Dynjit IR can be easily translated to C language or some Python-to-C language like Cython, etc.
 
+We use the following Haskell-like pseudo code to give definition of \textbf{type}.
+\lstset{language=Haskell, showlines=true, mathescape=true}
+\begin{lstlisting}
+data RefT       = RefT SurfT
+data RecordT    = RecordT (Map String SurfT)
+data UnionT     = UnionT [SurfT]
+data TupleT     = TupleT [SurfT]
+data TopT       = TopT
+data TypeT      = TypeT SurfT
+data PrimitiveT = PrimitiveT PyObject
+
+data ClosureT
+    = ClosureT 
+    { cell_type :: TupleT | NominalT
+    , fobj      :: PyFuncObject
+    }
+data NominalT
+    = NominalT 
+    { typename       ::PyTypeObject
+    , members        :: Map String T
+    , static_members :: Map String
+    }
+
+class IsT a
+
+instance IsT
+      RefT | RecordT | TupleT 
+    | UnionT | ClosureT | NominalT
+    | PrimitiveT | TopT | TypeT
+instance IsSurfT
+      RefT | ClosureT | NominalT
+    | PrimitiveT | TopT | TypeT
+
+type T     = forall a. IsT a $\Rightarrow$ a
+type SurfT = forall a. IsSurfT a $\Rightarrow$ a
+
+\end{lstlisting}
+
+\lstset{language=Python, showlines=true}
+
 \subsection*{Notations and Prerequisites}
 
 \begin{bnf*}
@@ -450,6 +490,7 @@ Dynjit IR can be easily translated to C language or some Python-to-C language li
           Given an offset $i \in \mathbb{N}$ of the value stack, and an abstract value $v$,
           $S[i \leftarrow v]$ returns a new stack $S^{'}$ which equals to $S$ except $S[i]$ = $v$.
     \item \textit{specialize}, a function to perform partial evaluation for a function according to the argument types
+    \item for an abstract value $a$, $a_r$ denotes for its \textbf{repr}, $a_t$ denotes for its \textbf{type}.
 \end{itemize}
 
 Note that $G$ and $I$ does not appear in the left hand side of $\vdash$, because each function has their unique and constant $G$ and $I$.
@@ -497,7 +538,7 @@ $\vdash^{*}$ is a wrap of $\vdash$ to record generated configurations.
 
 
 $$
-(D\; n, bool), \; \overbrace{\cdots}^{S^{'}}  = S
+(D\; n, bool) \; \mathbf{as} \; a, \; \overbrace{\cdots}^{S^{'}}  = S
 $$
 
 \vspace*{-1.5\baselineskip}
@@ -512,7 +553,7 @@ $$
     \gap
     S_2 \vdash P \Rightarrow L_2
 }{
-    S \vdash P \Rightarrow \mathbf{if} \; (D\; n, bool) \; \mathbf{then} \; L_1 \; \mathbf{else} \; L_2
+    S \vdash P \Rightarrow \mathbf{if} \; a \; \mathbf{then} \; L_1 \; \mathbf{else} \; L_2
 }
 $$
 
@@ -522,6 +563,7 @@ $$
 $$
 (repr, t_1 | t_2), \; \overbrace{\cdots}^{S^{'}}  = S
 $$
+
 
 \vspace*{-1.5\baselineskip}
 $$
@@ -609,22 +651,26 @@ $$
 
 \vspace*{\baselineskip}
 $$
-\mathbf{Call} \; n = I[P] \gap n = gensym()
+\mathbf{Call} \; n = I[P] \gap u = gensym()
 $$
 \vspace*{-\baselineskip}
 $$
-(r_1, t_1), (r_2, t_2) , \cdots, (r_n, t_n), (r_f, t_f), \; \overbrace{\cdots}^{S^{'}} = S
+a^{1*}, a^{2*}, \cdots, a^{n*}, a^{f*}, \; \overbrace{\cdots}^{S^{'}} = S
 $$
 \vspace*{-\baselineskip}
 $$
-closure, func, t_r = specialize(t_f, (t_1, t_2, \cdots, t_n))
+ClosureT\; \mathit{clot} \; \mathit{fobj} = a^{f*}_t
+$$
+\vspace*{-\baselineskip}
+$$
+func, t_r = specialize(fobj, (clot, a^{1*}_t, a^{2*}_t, \cdots, a^{n*}_t))
 $$
 \vspace*{-\baselineskip}
 $$
 \dfrac{
-    (D n, t_r), \overbrace{\cdots}^{S^{'}} \vdash P + 1 \Rightarrow L
+    (D\;u, t_r), \overbrace{\cdots}^{S^{'}} \vdash P + 1 \Rightarrow L
 }{
-    S \vdash P \Rightarrow n = func (closure, (r_1, t_1), (r_2, t_2), \cdots, (r_n, t_n)) ; \; \overbrace{\cdots}^{L}
+    S \vdash P \Rightarrow u = func (get\_closure(a^{f*}), a^{1*}, a^{2*}, \cdots, a^{n*}) ; \; \overbrace{\cdots}^{L}
 }
 $$
 

@@ -38,6 +38,7 @@ class JumpIf:
             push(TOS)
         goto lbl
     """
+
     expect: bool
     keep: bool
     lbl: Symbol
@@ -73,8 +74,14 @@ class Return:
     pass
 
 
+Instr = Union[
+    Return, Peek, Pop, Call, Jump, JumpIf, Store, Load, Constant, Label
+]
+
+
 def from_pyc(co: dis.Bytecode):
     from jit.from_pyc import _from_pyc
+
     codeobj = co.codeobj
     for each in co:
         each: dis.Instruction = each

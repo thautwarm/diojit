@@ -109,14 +109,14 @@ def _from_pyc(x: dis.Instruction, co: CodeType):
         yield JumpIf(True, False, x.arg)
 
     #  *_METHOD is treated as regular member lookup
-    elif x.opcode is opname.LOAD_ATTR or x.opcode is opname.CALL_METHOD:
+    elif x.opcode is opname.LOAD_ATTR or x.opcode is opname.LOAD_METHOD:
         attr = co.co_names[x.arg]
         yield Constant(i_getattr)
         yield Rot(2)
         yield Constant(attr)
         yield Call(2)
 
-    elif x.opcode is opname.CALL_FUNCTION:
+    elif x.opcode is opname.CALL_FUNCTION or x.opcode is opname.CALL_METHOD:
         yield Call(x.arg)
 
     elif x.opcode is opname.ROT_TWO:
@@ -236,16 +236,27 @@ def _from_pyc(x: dis.Instruction, co: CodeType):
             yield Constant(_cmp_instrinsics.get(cmp_name))
             yield Rot(3)
             yield Call(2)
+    elif x.opcode is opname.MAKE_FUNCTION:
+        flag = x.arg
+        argc = 2 + bin(flag & 0b1111).count("1")
+        yield Constant(flag)
+        yield Constant(i_mkfunc)
+        yield Rot(argc + 2)
+        yield Call(argc + 1)
+    elif x.opcode is opname.POP_TOP:
+        yield Pop()
+
     else:
         raise ValueError(x.opname)
 
+
 _cmp_instrinsics = {
-        '<': operator.lt,
-        '>': operator.lt,
-        '<=': operator.le,
-        '>=': operator.ge,
-        '!=': operator.ne,
-        'is': operator.is_,
-        'is not': operator.is_not,
-        'exception match': i_exec_match
+    "<": operator.lt,
+    ">": operator.lt,
+    "<=": operator.le,
+    ">=": operator.ge,
+    "!=": operator.ne,
+    "is": operator.is_,
+    "is not": operator.is_not,
+    "exception match": i_exec_match,
 }
