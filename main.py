@@ -1,6 +1,6 @@
 from jit.CoreCPY import *
 from jit.pe import Compiler
-from jit import types, dynjit, prims
+from jit import types, dynjit, prims, flat
 
 #
 def f(x):
@@ -90,7 +90,8 @@ print("DYNJIT IR".center(100, "-"))
 #
 m = c.specialise(g, types.int_t, types.int_t)
 dj = m.method.repr.c.__jit__
-dynjit.pprint(dj)
+dj = list(flat.linearize(dj))
+flat.pprint(dj)
 print(m.return_type)
 
 __fix__ = ["int", "pp", "isinstance", "float", "S"]
@@ -151,6 +152,6 @@ print("DYNJIT IR".center(100, "-"))
 m = c.specialise(pp, types.int_t)
 dj = m.method.repr.c.__jit__
 xs = []
-
-dynjit.pprint(dj)
+dj = list(flat.linearize(dj))
+flat.pprint(dj)
 print(m.return_type)
