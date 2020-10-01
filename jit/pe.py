@@ -285,6 +285,7 @@ class PE:
             yield dynjit.If(cond, arm1, arm2)
             return
         if isinstance(instr, CoreCPY.Return):
+            # insert upcast when it is union
             a, _ = stack.pop(s)
             if a.type not in self.return_types:
                 self.return_types.append(a.type)

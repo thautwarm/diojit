@@ -13,13 +13,19 @@ def spec1(self: PE, args, s, p):
     if r.type is types.str_t and isinstance(r.repr, dynjit.S):
         r_val = cast(str, r.repr.c)
         l_type = l.type
-        # print(l_type, '<>', r, r_val in l_type.members, l_type.members)
         if isinstance(l_type, types.NomT):
             if r_val in l_type.members:
                 unbound_method = l_type.members[r_val]
                 meth_t = types.MethT(l.type, unbound_method.type)
                 abs_val = dynjit.AbstractValue(dynjit.D(n), meth_t)
-                yield dynjit.Assign(abs_val, dynjit.Call(prims.v_mkmethod, [l, unbound_method], type=meth_t))
+                yield dynjit.Assign(
+                    abs_val,
+                    dynjit.Call(
+                        prims.v_mkmethod,
+                        [l, unbound_method],
+                        type=meth_t,
+                    ),
+                )
                 s = stack.cons(abs_val, s)
                 yield from infer(s, p + 1)
                 return
@@ -29,4 +35,3 @@ def spec1(self: PE, args, s, p):
                 yield from infer(s, p + 1)
                 return
     return NO_SPECIALIZATION
-
