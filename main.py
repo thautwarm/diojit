@@ -136,11 +136,12 @@ print(id(types.noms[list]))
 
 @c.aware
 def pp(x):
-    y = S()
-    a = y.f_dyn()
-    b = y.f_sta()
-    c = []
-    c.append(1)
+    for j in [1, 2]:
+        y = S()
+        a = y.f_dyn()
+        b = y.f_sta()
+        c = []
+        c.append(1)
     return a + b + x
 
 
@@ -151,7 +152,8 @@ print("DYNJIT IR".center(100, "-"))
 #
 m = c.specialise(pp, types.int_t)
 dj = m.method.repr.c.__jit__
-xs = []
-dj = list(flat.linearize(dj))
-flat.pprint(dj)
+dynjit.pprint(dj)
+# xs = []
+# dj = list(flat.linearize(dj))
+# flat.pprint(dj)
 print(m.return_type)

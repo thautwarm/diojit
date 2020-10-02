@@ -246,6 +246,12 @@ def _from_pyc(x: dis.Instruction, co: CodeType):
     elif x.opcode is opname.POP_TOP:
         yield Pop()
 
+    elif x.opcode is opname.GET_ITER:
+        yield Constant(iter)
+        yield Rot(2)
+        yield Call(1)
+
+
     else:
         raise ValueError(x.opname)
 
