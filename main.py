@@ -1,6 +1,7 @@
 from jit.CoreCPY import *
 from jit.pe import Compiler
 from jit import types, dynjit, prims, flat
+from jit.ll.closure import Closure
 
 #
 def f(x):
@@ -94,7 +95,7 @@ dj = list(flat.linearize(dj))
 flat.pprint(dj)
 print(m.return_type)
 
-__fix__ = ["int", "pp", "isinstance", "float", "S"]
+__fix__ = ["int", "pp", "isinstance", "float", "S", "Closure"]
 
 c = Compiler()
 
@@ -136,13 +137,15 @@ print(id(types.noms[list]))
 
 @c.aware
 def pp(x):
-    for j in [1, 2]:
+    j = 1
+
+    while j < 0:
         y = S()
         a = y.f_dyn()
         b = y.f_sta()
         c = []
         c.append(1)
-    return a + b + x
+        j = j + 1
 
 
 print("CORE CPY".center(100, "-"))
@@ -151,6 +154,34 @@ for e in from_pyc(dis.Bytecode(pp)):
 print("DYNJIT IR".center(100, "-"))
 #
 m = c.specialise(pp, types.int_t)
+dj = m.method.repr.c.__jit__
+dynjit.pprint(dj)
+# xs = []
+# dj = list(flat.linearize(dj))
+# flat.pprint(dj)
+print(m.return_type)
+
+
+__fix__ += ["fptr"]
+
+
+@c.aware
+def fptr(x, y, z):
+    return x + y + z
+
+
+@c.aware
+def ppp(x):
+    f = Closure(x, fptr)
+    return f(2, 3)
+
+
+print("CORE CPY".center(100, "-"))
+for e in from_pyc(dis.Bytecode(ppp)):
+    print(e)
+print("DYNJIT IR".center(100, "-"))
+#
+m = c.specialise(ppp, types.int_t)
 dj = m.method.repr.c.__jit__
 dynjit.pprint(dj)
 # xs = []

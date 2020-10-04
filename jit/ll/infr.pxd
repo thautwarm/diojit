@@ -12,7 +12,8 @@ cdef inline void c_set_member_by_offset(PyObject* x, int offset, PyObject* v):
     cdef PyObject** attr_ref
     ptr = <char*>x
     attr_ref = <PyObject**> (ptr + offset)
-    Py_XDECREF(attr_ref[0])
+    if attr_ref[0] != NULL:
+        Py_XDECREF(attr_ref[0])
     Py_XINCREF(v)
     attr_ref[0] = v
 

@@ -298,7 +298,6 @@ class PE:
             v_args: List[Union[dynjit.Call, dynjit.AbstractValue]],
         ):
             t_f = f.type
-
             if isinstance(t_f, types.PrimT):
                 f_repr = t_f.o
                 is_no_specialization = yield from self.call_prim(
@@ -314,11 +313,16 @@ class PE:
                 n = stack.size(s)
                 a_dyn = dynjit.AbstractValue(dynjit.D(n), ret_t)
                 s_new = stack.cons(a_dyn, s)
-                yield dynjit.Assign(a_dyn, dynjit.Call(prims.v_py_call, [f, *v_args]))
+                yield dynjit.Assign(
+                    a_dyn, dynjit.Call(prims.v_py_call, [f, *v_args])
+                )
                 yield from self.infer(s_new, p + 1)
                 return
 
-            if isinstance(t_f, types.NomT) and '__call__' in t_f.members:
+            if (
+                isinstance(t_f, types.NomT)
+                and "__call__" in t_f.members
+            ):
                 v_args = [f, *v_args]
                 f: dynjit.Expr = t_f.members["__call__"]
                 return (yield from iterate_desugar(f, v_args))
@@ -329,6 +333,15 @@ class PE:
                 )
                 f: dynjit.Call = dynjit.Call(
                     prims.v_getattr, [f, "__func__"], type=t_f.func
+                )
+                v_args = [expr_self, *v_args]
+                return (yield from iterate_desugar(f, v_args))
+            if isinstance(t_f, types.ClosureT):
+                expr_self = dynjit.Call(
+                    prims.v_getattr, [f, "cell"], type=t_f.cell
+                )
+                f: dynjit.Call = dynjit.Call(
+                    prims.v_getattr, [f, "func"], type=t_f.func
                 )
                 v_args = [expr_self, *v_args]
                 return (yield from iterate_desugar(f, v_args))

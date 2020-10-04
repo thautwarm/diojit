@@ -1,4 +1,5 @@
 from jit import types, dynjit
+from jit.ll.closure import Closure
 from jit.intrinsics import *
 import types as pytypes
 from collections.abc import Mapping
@@ -26,17 +27,24 @@ def ct2(ac):
     if a is not None:
         return a
 
+    if isinstance(ac, type):
+        t = types.noms.get(ac)
+        if t:
+            return types.TypeT(t)
+        return types.type_t
+
     return types.TopT()
 
 
 def ct1(ac):
     if isinstance(ac, tuple):
         return types.TupleT(tuple(map(ct2, ac)))
-    if isinstance(ac, type):
-        t = types.noms.get(ac)
-        if t:
-            return types.TypeT(t)
-        return types.type_t
+    if isinstance(ac, Closure):
+        if isinstance(ac.cell, tuple):
+            cell = types.TupleT(tuple(ct(e) for e in ac.cell))
+        else:
+            cell = ct(ac.cell)
+        return types.ClosureT(cell, ct(ac.func))
     return ct2(ac)
 
 
@@ -79,6 +87,7 @@ v_mkfunc = define_prim(i_mkfunc)
 v_mkmethod = define_prim(i_mkmethod)
 v_buildlist = define_prim(i_buildlist)
 v_listappend = define_prim(list.append)
+v_closure = define_prim(Closure)
 
 
 v_none = dynjit.AbstractValue(dynjit.S(None), types.none_t)

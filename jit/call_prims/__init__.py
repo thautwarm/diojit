@@ -32,5 +32,6 @@ def setup_primitives():
         p_mkfunc,
         p_storeref,
         p_attr,
-        p_datastructures
+        p_datastructures,
+        p_closure
     )

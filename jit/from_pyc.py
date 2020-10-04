@@ -116,7 +116,10 @@ def _from_pyc(x: dis.Instruction, co: CodeType):
         yield Constant(attr)
         yield Call(2)
 
-    elif x.opcode is opname.CALL_FUNCTION or x.opcode is opname.CALL_METHOD:
+    elif (
+        x.opcode is opname.CALL_FUNCTION
+        or x.opcode is opname.CALL_METHOD
+    ):
         yield Call(x.arg)
 
     elif x.opcode is opname.ROT_TWO:
@@ -250,7 +253,6 @@ def _from_pyc(x: dis.Instruction, co: CodeType):
         yield Constant(iter)
         yield Rot(2)
         yield Call(1)
-
 
     else:
         raise ValueError(x.opname)

@@ -38,8 +38,11 @@ def get_slot_member_offset(x: MemberDescriptorType):
 
 
 if __name__ == "__main__":
-    from jit.ll.infr import Closure, get_member_by_offset, set_member_by_offset
-
+    from jit.ll.infr import (
+        Closure,
+        get_member_by_offset,
+        set_member_by_offset,
+    )
 
     class S:
         __slots__ = ["a", "b", "c"]
@@ -60,23 +63,27 @@ if __name__ == "__main__":
 
     v = Closure(1, lambda c, x: x + c)
     print(v(2))
-    print(v.__func__)
-    print(v.__closure__)
 
     k = 114514
-    d = 'asda'
+    d = "asda"
     v = S(k)
     import sys
-    print('ref v', sys.getrefcount(v))
-    print('ref k', sys.getrefcount(k))
-    print('ref d', sys.getrefcount(d))
 
+    print("ref v", sys.getrefcount(v))
+    print("ref k", sys.getrefcount(k))
+    print("ref d", sys.getrefcount(d))
+
+    print("=========================")
     off = get_slot_member_offset(S.a)
     print(get_member_by_offset(v, off))
     set_member_by_offset(v, off, d)
     print(v.a)
-    print('ref v', sys.getrefcount(v))
-    print('ref k', sys.getrefcount(k))
-    print('ref d', sys.getrefcount(d))
+    print("ref v", sys.getrefcount(v))
+    print("ref k", sys.getrefcount(k))
+    print("ref d", sys.getrefcount(d))
 
-
+    zzz = 1155555
+    set_member_by_offset(v, get_slot_member_offset(S.b), zzz)
+    print(v.b)
+    print(sys.getrefcount(zzz))
+    print(sys.getrefcount(v.b))

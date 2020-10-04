@@ -3,7 +3,7 @@ from jit.pe import PE
 from jit.call_prims import register_dispatch, NO_SPECIALIZATION
 
 
-@register_dispatch(intrinsics.i_mkfunc, 2)
+@register_dispatch(intrinsics.i_store, 2)
 def spec(self: PE, args, s, p):
     infer = self.infer
     l: dynjit.AbstractValue = args[0]

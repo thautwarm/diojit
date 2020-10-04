@@ -88,7 +88,7 @@ class ClosureT:
     @staticmethod
     def to_py_type():
         # TODO: a cython structure
-        from jit.ll.infr import Closure
+        from jit.ll.closure import Closure
         return Closure
 
     def __repr__(self):
@@ -250,5 +250,6 @@ T = Union[
     TypeT,
     BottomT,
     MethT,
+    ClosureT
 ]
-SurfT = Union[RefT, FPtrT, NomT, PrimT, TopT, BottomT, MethT]
+SurfT = Union[RefT, FPtrT, NomT, PrimT, TopT, BottomT, MethT, ClosureT]

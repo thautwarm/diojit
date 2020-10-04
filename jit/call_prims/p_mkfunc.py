@@ -6,10 +6,11 @@ import jit.cflags as cflags
 import types as pytypes
 
 
-@register_dispatch(intrinsics.i_store, 7)
-@register_dispatch(intrinsics.i_store, 6)
-@register_dispatch(intrinsics.i_store, 5)
-@register_dispatch(intrinsics.i_store, 4)
+@register_dispatch(intrinsics.i_mkfunc, 7)
+@register_dispatch(intrinsics.i_mkfunc, 6)
+@register_dispatch(intrinsics.i_mkfunc, 5)
+@register_dispatch(intrinsics.i_mkfunc, 4)
+@register_dispatch(intrinsics.i_mkfunc, 3)
 def spec(self: PE, args, s, p):
     # https://docs.python.org/3/library/dis.html?highlight=bytecode#opcode-MAKE_FUNCTION
     flag: dynjit.AbstractValue = args[-1]
@@ -32,7 +33,9 @@ def spec(self: PE, args, s, p):
     if flag & 0x08:
         raise NotImplementedError
 
-    code_obj: pytypes.CodeType = args.pop()
+    code_obj_abs_val: dynjit.AbstractValue = args.pop()
+    assert isinstance(code_obj_abs_val.repr, dynjit.S) and isinstance(code_obj_abs_val.repr.c, pytypes.CodeType)
+    code_obj: pytypes.CodeType = code_obj_abs_val.repr.c
 
     if code_obj.co_flags & cflags.VARARGS:
         raise NotImplementedError
@@ -47,10 +50,12 @@ def spec(self: PE, args, s, p):
     if code_obj.co_flags & cflags.VARKEYWORDS:
         raise NotImplementedError
 
-    code_name = args.pop()
-    assert not args
+    code_name: dynjit.AbstractValue = args.pop()
+    assert isinstance(code_name.repr, dynjit.S) and isinstance(code_name.repr.c, str)
+
+    assert len(args) == 1
     f = pytypes.FunctionType(
-        code_obj, cast(dict, self.glob_val.repr.c), code_name
+        code_obj, cast(dict, self.glob_val.repr.c), code_name.repr.c
     )
     v_f = dynjit.AbstractValue(dynjit.S(f), types.FPtrT(f))
     s = stack.cons(v_f, s)
