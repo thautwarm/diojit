@@ -19,6 +19,10 @@ def i_buildtuple(*args):
     return args
 
 
+def i_buildtupleunpack(*args):
+    return args
+
+
 def i_buildlist(*args):
     return list(args)
 

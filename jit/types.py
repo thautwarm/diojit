@@ -80,6 +80,21 @@ class MethT:
         return f"{self.func!r}({self.self!r})"
 
 
+@dataclass(frozen=True, eq=True)
+class ClosureT:
+    cell: T
+    func: T
+
+    @staticmethod
+    def to_py_type():
+        # TODO: a cython structure
+        from jit.ll.infr import Closure
+        return Closure
+
+    def __repr__(self):
+        return f"{self.func!r}[{self.cell!r}]"
+
+
 #
 # @dataclass(frozen=True)
 # class DefaultT:
@@ -220,7 +235,7 @@ noms = {
     NoneType: none_t,
     cell: cell_t,
     type: type_t,
-    list: list_t
+    list: list_t,
 }
 
 T = Union[
