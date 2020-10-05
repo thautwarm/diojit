@@ -119,8 +119,8 @@ def mk_member_(d, f: types.NomT, attr: str):
 
 @c.assume(S)
 def _(f: types.NomT):
-    mk_member_(f.members, f, "f_dyn")
-    mk_member_(f.static_members, f, "f_sta")
+    mk_member_(f.methods, f, "f_dyn")
+    mk_member_(f.static_methods, f, "f_sta")
 
 
 print(id(types.noms[list]))
@@ -128,8 +128,8 @@ print(id(types.noms[list]))
 
 @c.assume(list)
 def _(f: types.NomT):
-    mk_member_(f.members, f, "append")
-    mk_member_(f.static_members, f, "pop")
+    mk_member_(f.methods, f, "append")
+    mk_member_(f.static_methods, f, "pop")
 
 
 print(id(types.noms[list]))

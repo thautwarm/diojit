@@ -38,11 +38,12 @@ def get_slot_member_offset(x: MemberDescriptorType):
 
 
 if __name__ == "__main__":
+    from jit.ll.closure import Closure
     from jit.ll.infr import (
-        Closure,
         get_member_by_offset,
         set_member_by_offset,
     )
+    import jit.ll.infr as infr
 
     class S:
         __slots__ = ["a", "b", "c"]
@@ -87,3 +88,6 @@ if __name__ == "__main__":
     print(v.b)
     print(sys.getrefcount(zzz))
     print(sys.getrefcount(v.b))
+
+    print(infr._long_add(2, 8))
+    print(infr._float_add(1, 8.0))

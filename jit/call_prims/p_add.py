@@ -23,7 +23,7 @@ def spec(self: PE, args, s, p):
         yield from self.infer(s, p + 1)
     elif l.type is types.int_t and r.type is types.float_t:
         abs_val = dynjit.AbstractValue(repr, types.float_t)
-        yield dynjit.Assign(abs_val, dynjit.Call(prims.v_fadd, [dynjit.Call(prims.v_sext, [l]), r]))
+        yield dynjit.Assign(abs_val, dynjit.Call(prims.v_fadd, [l, r]))
         s = stack.cons(abs_val, s)
         yield from self.infer(s, p + 1)
     elif l.type is types.float_t and r.type is types.int_t:

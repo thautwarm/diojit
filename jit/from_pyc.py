@@ -10,50 +10,8 @@ def _from_pyc(x: dis.Instruction, co: CodeType):
         yield Constant(const)
     elif x.opcode is opname.LOAD_FAST:
         yield Load(x.arg + hasfree)
-    elif x.opcode is opname.LOAD_DEREF:
-        len_cells = len(co.co_cellvars)
-        if x.arg < len_cells:
-            yield Constant(i_deref)
-            yield Load(x.arg + len(co.co_varnames) + hasfree)
-            yield Call(1)
-        else:
-            yield Constant(i_deref)
-            yield Constant(i_getitem)
-            yield Load(0)
-            yield Constant(len_cells - x.arg)
-            yield Call(2)
-            yield Call(1)
-    elif x.opcode is opname.LOAD_CLOSURE:
-        len_cells = len(co.co_cellvars)
-        if x.arg < len_cells:
-            yield Load(x.arg + len(co.co_varnames) + hasfree)
-        else:
-            yield Constant(i_getitem)
-            yield Load(0)
-            yield Constant(len_cells - x.arg)
-            yield Call(2)
-
     elif x.opcode is opname.STORE_FAST:
         yield Store(x.arg + hasfree)
-    elif x.opcode is opname.STORE_DEREF:
-        len_cells = len(co.co_cellvars)
-        if x.arg < len_cells:
-            yield Constant(i_store)
-            yield Load(x.arg + len(co.co_varnames) + hasfree)
-            yield Rot(3)
-            yield Rot(3)
-            yield Call(2)
-            yield Pop()
-        else:
-            yield Constant(i_store)
-            yield Constant(i_getitem)
-            yield Load(0)
-            yield Constant(len_cells - x.arg)
-            yield Call(2)
-            yield Rot(3)
-            yield Rot(3)
-            yield Call(2)
-            yield Pop()
     elif x.opcode is opname.LOAD_GLOBAL:
         name = co.co_names[x.arg]
         yield Constant(i_getitem)

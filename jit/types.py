@@ -107,18 +107,21 @@ class ClosureT:
 
 class NomT:
     name: type
-    members: Dict[str, dynjit.Expr]
-    static_members: Dict[str, dynjit.Expr]
+    members: Dict[str, dynjit.T]
+    methods: Dict[str, dynjit.Expr]
+    static_methods: Dict[str, dynjit.Expr]
 
     def __init__(
         self,
         name: type,
-        members: Dict[str, dynjit.Expr],
-        static_members: Dict[str, dynjit.Expr],
+        members: Dict[str, dynjit.T],
+        methods: Dict[str, dynjit.Expr],
+        static_methods: Dict[str, dynjit.Expr],
     ):
         self.name = name
         self.members = members
-        self.static_members = static_members
+        self.methods = methods
+        self.static_methods = static_methods
 
     def to_py_type(self):
         return self.name

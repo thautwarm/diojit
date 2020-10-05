@@ -11,7 +11,7 @@ del If
 class TypeCheck:
     expr: Expr
     type: types.T
-    tag1: Symbol
+    jmp: Symbol
 
 
 @dataclass(frozen=True)
@@ -107,7 +107,7 @@ def pretty_instr(io, stmt, indent):
         io(repr(stmt.type))
         io("\n")
         io(prefix0)
-        io(f"    {stmt.tag1}\n")
+        io(f"    {stmt.jmp}\n")
 
     elif isinstance(stmt, Goto):
         io("goto ")

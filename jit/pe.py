@@ -46,8 +46,9 @@ class Compiler:
             nom_t: types.NomT = types.noms.get(pytype)
             if nom_t is None:
                 members = {}
-                static_members = {}
-                nom_t = types.NomT(pytype, members, static_members)
+                methods = {}
+                static_methods = {}
+                nom_t = types.NomT(pytype, members, methods, static_methods)
                 types.noms[pytype] = nom_t
             return func(nom_t)
 
@@ -321,10 +322,10 @@ class PE:
 
             if (
                 isinstance(t_f, types.NomT)
-                and "__call__" in t_f.members
+                and "__call__" in t_f.methods
             ):
                 v_args = [f, *v_args]
-                f: dynjit.Expr = t_f.members["__call__"]
+                f: dynjit.Expr = t_f.methods["__call__"]
                 return (yield from iterate_desugar(f, v_args))
 
             if isinstance(t_f, types.MethT):

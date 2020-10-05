@@ -27,6 +27,14 @@ def i_buildlist(*args):
     return list(args)
 
 
+def i_get_member_by_offset(s: object, i: int):
+    raise NotImplemented
+
+
+def i_set_member_by_offset(s: object, i: int, v: object):
+    raise NotImplemented
+
+
 def i_setitem(x, i, v):
     x[i] = v
 
@@ -39,10 +47,6 @@ i_not = operator.not_
 
 i_getattr = getattr
 i_setattr = setattr
-
-
-def i_getcells(s):
-    return s.__closure__
 
 
 def i_pycall(f, *args):
@@ -85,11 +89,6 @@ _call_types = {}
 
 def i_parseint(a: str):
     return int(a)
-
-
-def i_mkcell(v):
-    # make a cell that `cell.cell_contents is v`.
-    raise NotImplemented
 
 
 def i_mkfunc(*args, flag):
