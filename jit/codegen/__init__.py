@@ -9,9 +9,11 @@ from collections import deque
 class MissingDict(dict):
     def __init__(self, func):
         self.func = func
+        self.cnt = 0
 
     def __missing__(self, key):
-        v = self[key] = self.func(len(self))
+        v = self[key] = self.func(self.cnt)
+        self.cnt += 1
         return v
 
 

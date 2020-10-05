@@ -222,7 +222,7 @@ class PE:
                 s2 = stack.cons(h2, s)
                 arm1 = list(self.infer(s1, p))
                 arm2 = list(self.infer(s2, p))
-                dynjit.If(abs_val, arm1, arm2)
+                yield dynjit.If(abs_val, arm1, arm2)
                 return
             if isinstance(t_tos, types.UnionT):
                 s = s_

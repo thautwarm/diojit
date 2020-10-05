@@ -56,6 +56,7 @@ cdef extern from "Python.h":
     object dynjit_method_new "PyMethod_New"(object func, object self)
 
     double PyLong_AsDouble(object) except? -1.0
+    object PyNumber_Add(object o1, object o2)
 
     void* dynjit_helper_tp_as_number(object o)
     binaryfunc dynjit_helper_nb_add(void* o)
