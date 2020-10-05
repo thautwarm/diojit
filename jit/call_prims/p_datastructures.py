@@ -20,3 +20,12 @@ def spec(self: PE, args, s, p):
     s_new = stack.cons(a_dyn, s)
     yield dynjit.Assign(a_dyn, dynjit.Call(prims.v_listappend, args))
     yield from self.infer(s_new, p + 1)
+
+
+@register_dispatch(list.extend, 2)
+def spec(self: PE, args, s, p):
+    n = stack.size(s)
+    a_dyn = dynjit.AbstractValue(dynjit.D(n), types.none_t)
+    s_new = stack.cons(a_dyn, s)
+    yield dynjit.Assign(a_dyn, dynjit.Call(prims.v_listextend, args))
+    yield from self.infer(s_new, p + 1)

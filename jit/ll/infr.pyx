@@ -1,18 +1,104 @@
 from cpython cimport PyObject
-
-
-cpdef object get_member_by_offset(object x, int offset):
-    return <object>(c_get_member_by_offset(<PyObject*> x, offset))
-
-
-cpdef void set_member_by_offset(object x, int offset, object v):
-    c_set_member_by_offset(<PyObject*> x, offset, <PyObject*> v)
-
-cdef binaryfunc dynjit_cpy_long_add = dynjit_helper_nb_add(dynjit_helper_tp_as_number(<PyObject*> int))
-cdef binaryfunc dynjit_cpy_float_add = dynjit_helper_nb_add(dynjit_helper_tp_as_number(<PyObject*> float))
+from libc cimport stdint
+cdef binaryfunc dynjit_long_add = dynjit_helper_nb_add(dynjit_helper_tp_as_number(int))
+cdef binaryfunc dynjit_float_add = dynjit_helper_nb_add(dynjit_helper_tp_as_number(float))
+cdef richcmpfunc dynjit_long_richcmp = dynjit_helper_tp_richcompare(int)
+cdef richcmpfunc dynjit_float_richcmp = dynjit_helper_tp_richcompare(float)
+cdef richcmpfunc dynjit_str_richcmp = dynjit_helper_tp_richcompare(str)
 
 def _long_add(a, b):
-    return dynjit_cpy_long_add(a, b)
+    return dynjit_long_add(a, b)
 
 def _float_add(a, b):
-    return dynjit_cpy_float_add(a, b)
+    return dynjit_float_add(a, b)
+
+def test():
+
+    dynjit_tuple_getitem_int_inbounds((1, 2), 0)
+    dynjit_tuple_getitem_int((1, 2), 0)
+
+    dynjit_object_getattr([], 'count')
+    dynjit_object_setattr(lambda x: x, 'attr', 0)
+
+    dynjit_list_getitem_int([1], 0)
+    dynjit_list_getitem_int_inbounds([1], 0)
+
+    dynjit_list_setitem_int([1], 0, 1)
+    dynjit_list_setitem_int_inbounds([1], 0, 1)
+
+    dynjit_list_append([], 1)
+    dynjit_list_extend([], [1, 2])
+
+    print(dynjit_str_concat("123", "23"))
+    dynjit_method_new(lambda self: 1, object())
+
+    print(dynjit_float_richcmp(1.0, 2.0, Py_LE))
+    print(dynjit_float_richcmp(2.0, 1.0, Py_LE))
+    print(dynjit_int_to_float(-1))
+    print(dynjit_long_richcmp(0, 20, Py_LT))
+
+
+cdef class JitFunction0:
+    def __cinit__(self, stdint.uint64_t fptr):
+        self.fptr = <cfunc0>fptr
+    def __call__(self):
+        return self.fptr()
+    @property
+    def addr(self):
+        return <stdint.uint64_t> self.fptr
+
+cdef class JitFunction1:
+    def __cinit__(self, stdint.uint64_t fptr):
+        self.fptr = <cfunc1>fptr
+    def __call__(self, a):
+        return self.fptr(a)
+    @property
+    def addr(self):
+        return <stdint.uint64_t> self.fptr
+
+cdef class JitFunction2:
+    def __cinit__(self, stdint.uint64_t fptr):
+        self.fptr = <cfunc2>fptr
+    def __call__(self, a1, a2):
+        return self.fptr(a1, a2)
+    @property
+    def addr(self):
+        return <stdint.uint64_t> self.fptr
+
+cdef class JitFunction3:
+    def __cinit__(self, stdint.uint64_t fptr):
+        self.fptr = <cfunc3>fptr
+    def __call__(self, a1, a2, a3):
+        return self.fptr(a1, a2, a3)
+    @property
+    def addr(self):
+        return <stdint.uint64_t> self.fptr
+
+
+cdef class JitFunction4:
+    def __cinit__(self, stdint.uint64_t fptr):
+        self.fptr = <cfunc4>fptr
+    def __call__(self, a1, a2, a3, a4):
+        return self.fptr(a1, a2, a3, a4)
+    @property
+    def addr(self):
+        return <stdint.uint64_t> self.fptr
+
+cdef class JitFunction5:
+    def __cinit__(self, stdint.uint64_t fptr):
+        self.fptr = <cfunc5>fptr
+    def __call__(self, a1, a2, a3, a4, a5):
+        return self.fptr(a1, a2, a3, a4, a5)
+    @property
+    def addr(self):
+        return <stdint.uint64_t> self.fptr
+
+
+NJitFunctions = {
+    0: JitFunction0,
+    1: JitFunction1,
+    2: JitFunction2,
+    3: JitFunction3,
+    4: JitFunction4,
+    5: JitFunction5
+}

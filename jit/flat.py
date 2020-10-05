@@ -20,7 +20,12 @@ class If:
     jmp: Symbol
 
 
-Instr = Union[Assign, Goto, Label, Return, TypeCheck, If]
+@dataclass(frozen=True)
+class Empty:
+    pass
+
+
+Instr = Union[Assign, Goto, Label, Return, TypeCheck, If, Empty]
 
 
 def gen_label(lbls: list):
@@ -36,32 +41,37 @@ def linearize(stmts: Iterable[Stmt]):
         yield from linearize_each(each, labels)
 
 
+def linearize_many(stmts, labels):
+    if not stmts:
+        yield Empty()
+    else:
+        for s in stmts:
+            yield from linearize_each(s, labels)
+
+
 def linearize_each(stmt: Stmt, labels: list):
     if isinstance(stmt, dynjit.If):
         tag_true = gen_label(labels)
         tag_final = gen_label(labels)
 
         yield If(stmt.cond, tag_true)
-        for each in stmt.arm2:
-            yield from linearize_each(each, labels)
+        yield from linearize_many(stmt.arm2, labels)
         yield Goto(tag_final)
         yield Label(tag_true)
 
-        for each in stmt.arm1:
-            yield from linearize_each(each, labels)
+        yield from linearize_many(stmt.arm1, labels)
+
         yield Label(tag_final)
     elif isinstance(stmt, dynjit.TypeCheck):
         tag_true = gen_label(labels)
         tag_final = gen_label(labels)
 
         yield TypeCheck(stmt.expr, stmt.type, tag_true)
-        for each in stmt.arm2:
-            yield from linearize_each(each, labels)
+        yield from linearize_many(stmt.arm2, labels)
         yield Goto(tag_final)
         yield Label(tag_true)
 
-        for each in stmt.arm1:
-            yield from linearize_each(each, labels)
+        yield from linearize_many(stmt.arm1, labels)
         yield Label(tag_final)
     else:
         yield stmt
@@ -113,5 +123,7 @@ def pretty_instr(io, stmt, indent):
         io("goto ")
         io(repr(stmt.lbl))
         io("\n")
+    elif isinstance(stmt, Empty):
+        pass
     else:
         raise TypeError(stmt)

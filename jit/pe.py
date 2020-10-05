@@ -1,11 +1,15 @@
-from jit import CoreCPY, types, dynjit, stack, prims, intrinsics
+from jit import CoreCPY, types, dynjit, stack, prims, intrinsics, flat
+from jit.ll.closure import Closure
+from jit.ll import get_slot_member_offset
+from jit.codegen import Emit
 from jit.call_prims import (
     dispatch,
     setup_primitives,
     NO_SPECIALIZATION,
 )
-from typing import List, Optional, Sequence, Dict, Union
+from typing import List, Optional, Sequence, Dict, Union, Set
 from dataclasses import dataclass, field
+from enum import Enum, auto
 import types as pytypes
 import dis
 import itertools
@@ -15,11 +19,6 @@ import itertools
 class Specialised:
     return_type: types.T
     method: dynjit.AbstractValue
-
-
-def codegen(f, dynjit_ir):
-    setattr(f, "__jit__", dynjit_ir)
-    return f
 
 
 def calc_initial_stack_size(codeobj):
@@ -32,13 +31,21 @@ class Assumptions:
     members: Dict[str, types.T]
 
 
+class DEBUG(Enum):
+    print_dynjit_ir = auto()
+    print_relooped_dynjit_ir = auto()
+    print_generated_cython = auto()
+    print_func_addr = auto()
+
+
 class Compiler:
-    def __init__(self, registered_primitives=None):
+    def __init__(self):
         setup_primitives()
         self.methods = {}
         self.spec_stack = set()
         self.corecpy = {}
         self.awared = set()
+        self.debug = {*DEBUG}
 
     @staticmethod
     def assume(pytype: type):
@@ -48,7 +55,9 @@ class Compiler:
                 members = {}
                 methods = {}
                 static_methods = {}
-                nom_t = types.NomT(pytype, members, methods, static_methods)
+                nom_t = types.NomT(
+                    pytype, members, methods, static_methods
+                )
                 types.noms[pytype] = nom_t
             return func(nom_t)
 
@@ -65,7 +74,6 @@ class Compiler:
     def specialise(
         self, func: pytypes.FunctionType, *arg_types
     ) -> Optional[Specialised]:
-        # NOTE: 'arg_types[0]' is a tuple of free variables
         # use of func_obj:
         # 1. as key for caching
         # 2. inspect reference of global variables
@@ -88,6 +96,7 @@ class Compiler:
         uninitialized_count = calc_initial_stack_size(
             func.__code__
         ) - len(arg_types)
+
         (S) = [
             dynjit.AbstractValue(dynjit.D(i + 1), a)
             for i, a in enumerate(
@@ -98,7 +107,10 @@ class Compiler:
                     ),
                 )
             )
-        ][::-1]
+        ]
+        arg_vals = S[: len(arg_types)]
+        (S) = S[::-1]
+
         # so for no closure, so make it None
         S.append(dynjit.AbstractValue(dynjit.S(None), types.none_t))
         (S) = stack.construct(S)
@@ -120,13 +132,44 @@ class Compiler:
             ret_t = types.UnionT(set(return_types))
 
         # TODO
-        method_obj = codegen(func, dynjit_code)
 
-        abs_val_m = dynjit.AbstractValue(
-            dynjit.S(method_obj),
-            types.FPtrT(method_obj),
+        if DEBUG.print_dynjit_ir in self.debug:
+            print(f"dynjit ir of {func.__name__}".center(50, "="))
+            dynjit.pprint(dynjit_code)
+        flat_dynjit_code = list(flat.linearize(dynjit_code))
+
+        if DEBUG.print_relooped_dynjit_ir in self.debug:
+            print(
+                f"flatten dynjit ir of {func.__name__}".center(50, "=")
+            )
+            flat.pprint(flat_dynjit_code)
+
+        emit = Emit(arg_vals)
+        emit.visit_stmts(flat_dynjit_code)
+
+        from jit.codegen.cython_loader import compile_module
+
+        initializations, code = emit.code_generation()
+        if DEBUG.print_generated_cython in self.debug:
+            print("cython code".center(50, "="))
+            print(code)
+
+        mod = compile_module(code)
+        for initialize in initializations:
+            initialize(mod)
+
+        jit_func = mod.pyfunc
+
+        if DEBUG.print_func_addr in self.debug:
+            print("func addr".center(50, "="))
+            print(hex(jit_func.addr))
+
+        m = Specialised(
+            return_type=ret_t,
+            method=dynjit.AbstractValue(
+                dynjit.S(jit_func), types.JitFPtrT(len(arg_types))
+            ),
         )
-        m = Specialised(ret_t, abs_val_m)
         self.methods[key] = m
         return m
 
@@ -147,6 +190,7 @@ class PE:
     counter_lbl: List[int] = field(default_factory=lambda: [0])
     counter_sym: List[int] = field(default_factory=lambda: [0])
     return_types: List[types.T] = field(default_factory=list)
+    func_aries: Set[int] = field(default_factory=set)
 
     def infer(self, s, p):
         I = self.corecpy_suite
@@ -330,19 +374,36 @@ class PE:
 
             if isinstance(t_f, types.MethT):
                 expr_self = dynjit.Call(
-                    prims.v_getattr, [f, "__self__"], type=t_f.self
+                    prims.v_getattr,
+                    [f, prims.mk_v_str("__self__")],
+                    type=t_f.self,
                 )
                 f: dynjit.Call = dynjit.Call(
-                    prims.v_getattr, [f, "__func__"], type=t_f.func
+                    prims.v_getattr,
+                    [f, prims.mk_v_str("__func__")],
+                    type=t_f.func,
                 )
                 v_args = [expr_self, *v_args]
                 return (yield from iterate_desugar(f, v_args))
             if isinstance(t_f, types.ClosureT):
+                # noinspection PyTypeChecker
+                func_off = prims.mk_v_int(
+                    get_slot_member_offset(Closure.func)
+                )
+                # noinspection PyTypeChecker
+                cell_off = prims.mk_v_int(
+                    get_slot_member_offset(Closure.cell)
+                )
+
                 expr_self = dynjit.Call(
-                    prims.v_getattr, [f, "cell"], type=t_f.cell
+                    prims.v_getoffset,
+                    [f, cell_off, prims.mk_v_str("cell")],
+                    type=t_f.cell,
                 )
                 f: dynjit.Call = dynjit.Call(
-                    prims.v_getattr, [f, "func"], type=t_f.func
+                    prims.v_getattr,
+                    [f, func_off, prims.mk_v_str("func")],
+                    type=t_f.func,
                 )
                 v_args = [expr_self, *v_args]
                 return (yield from iterate_desugar(f, v_args))
@@ -354,6 +415,8 @@ class PE:
                     *[v.type for v in v_args],
                 )
                 if specialised:
+                    self.func_aries.add(len(v_args))
+
                     spec_method = specialised.method
                     expr = dynjit.Call(spec_method, v_args)
                     a_dyn = dynjit.AbstractValue(

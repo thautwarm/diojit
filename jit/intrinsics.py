@@ -68,7 +68,7 @@ def i_sconcat(a: str, b: str):
     return a + b
 
 
-def i_sext(a: int):
+def i_i2f(a: int):
     return float(a)
 
 
@@ -80,7 +80,11 @@ def i_beq(a: bool, b: bool):
     return a is b
 
 
-def i_tupleget(a: tuple, b: int):
+def i_tuple_getitem_int(a: tuple, b: int):
+    return a[b]
+
+
+def i_tuple_getitem_int_inbounds(a: tuple, b: int):
     return a[b]
 
 
@@ -105,3 +109,19 @@ def i_asint(i):
 
 def i_asbool(i):
     return bool(i)
+
+
+def i_bnot(b: bool):
+    return not b
+
+
+def i_irichcmp(a, b, op: int):
+    raise NotImplemented
+
+
+def i_frichcmp(a, b, op: int):
+    raise NotImplemented
+
+
+def i_srichcmp(a, b, op: int):
+    raise NotImplemented

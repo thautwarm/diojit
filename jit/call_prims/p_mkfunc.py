@@ -57,6 +57,6 @@ def spec(self: PE, args, s, p):
     f = pytypes.FunctionType(
         code_obj, cast(dict, self.glob_val.repr.c), code_name.repr.c
     )
-    v_f = dynjit.AbstractValue(dynjit.S(f), types.FPtrT(f))
+    v_f = dynjit.AbstractValue(dynjit.S(f), types.FPtrT(code_obj.co_argcount, f))
     s = stack.cons(v_f, s)
     yield from self.infer(s, p + 1)

@@ -44,9 +44,13 @@ class D:
 Repr = Union[S, D]
 
 
-class AbstractValue(NamedTuple):
+@dataclass(frozen=True, eq=True, order=True)
+class AbstractValue:
     repr: Repr
     type: types.T
+
+    def __post_init__(self):
+        assert isinstance(self.repr, (S, D))
 
     def __repr__(self):
         return f"<{self.type}>{self.repr}"
@@ -60,6 +64,11 @@ class Call:
     f: Expr
     args: Sequence[Expr]
     type: types.T = field(default=None)
+
+    def __post_init__(self):
+        assert isinstance(self.f, (Call, AbstractValue)) and all(
+            isinstance(e, (Call, AbstractValue)) for e in self.args
+        )
 
     def __repr__(self):
         return "{}({})".format(

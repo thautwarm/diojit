@@ -19,16 +19,23 @@ def spec1(self: PE, args, s, p):
                 ret_t = l_type.members[r_val]
                 abs_val = dynjit.AbstractValue(dynjit.D(n), ret_t)
                 pytype = l_type.to_py_type()
-                if getattr(pytype, '__slots__', None) and r_val in pytype.__slots__:
+                if (
+                    getattr(pytype, "__slots__", None)
+                    and r_val in pytype.__slots__
+                ):
                     offset = dynjit.AbstractValue(
-                        dynjit.S(get_slot_member_offset(getattr(pytype, r_val))),
-                        types.int_t
+                        dynjit.S(
+                            get_slot_member_offset(
+                                getattr(pytype, r_val)
+                            )
+                        ),
+                        types.int_t,
                     )
                     yield dynjit.Assign(
                         abs_val,
                         dynjit.Call(
-                            prims.v_get_member_by_offset,
-                            [l, offset],
+                            prims.v_getoffset,
+                            [l, offset, r],
                             type=ret_t,
                         ),
                     )
@@ -53,7 +60,7 @@ def spec1(self: PE, args, s, p):
                     abs_val,
                     dynjit.Call(
                         prims.v_mkmethod,
-                        [l, unbound_method],
+                        [unbound_method, l],
                         type=meth_t,
                     ),
                 )
@@ -65,4 +72,11 @@ def spec1(self: PE, args, s, p):
                 s = stack.cons(static_method, s)
                 yield from infer(s, p + 1)
                 return
-    return NO_SPECIALIZATION
+
+    abs_val = dynjit.AbstractValue(dynjit.D(n), types.TopT())
+    yield dynjit.Assign(
+        abs_val, dynjit.Call(prims.v_getattr, [l, r], type=abs_val.type)
+    )
+    s = stack.cons(abs_val, s)
+    yield from infer(s, p + 1)
+    return

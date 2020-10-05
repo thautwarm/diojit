@@ -17,11 +17,13 @@ def ct2(ac):
         # unhashable
         pass
 
+    # noinspection PyTypeChecker
     if isinstance(ac, pytypes.FunctionType):
         # noinspection PyUnresolvedReferences
         if ac.__closure__:
             raise NotImplementedError
-        return types.FPtrT(ac)
+        code: pytypes.CodeType = ac.__code__
+        return types.FPtrT(code.co_argcount, ac)
 
     a = types.noms.get(type(ac))
     if a is not None:
@@ -73,24 +75,58 @@ v_fadd = define_prim(i_fadd)
 v_sconcat = define_prim(i_sconcat)
 v_asbool = define_prim(i_asbool)
 v_beq = define_prim(i_beq)
-v_tupleget = define_prim(i_tupleget)
-v_globals = define_prim(i_globals)
+v_tuple_getitem_int = define_prim(i_tuple_getitem_int)
+v_tuple_getitem_int_inbounds = define_prim(i_tuple_getitem_int_inbounds)
+
+v_globals = define_prim(i_globals)  # cannot appear when codegen
+
 v_getitem = define_prim(i_getitem)
-v_asint = define_prim(i_asint)
-v_strunc = define_prim(i_strunc)
-v_parseint = define_prim(i_parseint)
+
 v_storeref = define_prim(i_store)
 v_mkfunc = define_prim(i_mkfunc)
 v_mkmethod = define_prim(i_mkmethod)
 v_buildlist = define_prim(i_buildlist)
-v_get_member_by_offset = define_prim(i_get_member_by_offset)
-v_set_member_by_offset = define_prim(i_set_member_by_offset)
+v_getoffset = define_prim(i_get_member_by_offset)
+v_setoffset = define_prim(i_set_member_by_offset)
 v_listappend = define_prim(list.append)
+v_listextend = define_prim(list.extend)
 v_closure = define_prim(Closure)
 
-
+# value:
 v_none = dynjit.AbstractValue(dynjit.S(None), types.none_t)
+
+# codegen not implemented yet:
+v_asint = define_prim(i_asint)
+v_strunc = define_prim(i_strunc)
+v_parseint = define_prim(i_parseint)
+
+
+# compare
+v_lt = define_prim(operator.lt)
+v_gt = define_prim(operator.gt)
+v_irichcmp = define_prim(i_irichcmp)
+v_frichcmp = define_prim(i_frichcmp)
+v_srichcmp = define_prim(i_srichcmp)
+v_i2f = define_prim(i_i2f)
+
+
+class ConstantSymbol:
+    def __init__(self, s: str):
+        self.s = s
+
+    def __repr__(self):
+        return self.s
 
 
 def mk_v_str(s: str):
     return dynjit.AbstractValue(dynjit.S(s), types.str_t)
+
+
+def mk_v_const_sym(s: str):
+    return dynjit.AbstractValue(
+        dynjit.S(ConstantSymbol(s)), types.ConstT()
+    )
+
+
+def mk_v_int(s: int):
+    return dynjit.AbstractValue(dynjit.S(s), types.int_t)

@@ -184,7 +184,17 @@ print("DYNJIT IR".center(100, "-"))
 m = c.specialise(ppp, types.int_t)
 dj = m.method.repr.c.__jit__
 dynjit.pprint(dj)
-# xs = []
-# dj = list(flat.linearize(dj))
-# flat.pprint(dj)
 print(m.return_type)
+
+xs = []
+dj = list(flat.linearize(dj))
+
+from jit.codegen import Emit
+
+self = Emit()
+self.visit_stmts(dj)
+
+print("=".center(20, "="))
+print(self.io.getvalue())
+print(self.hashable_const_pools)
+print(self.unhashable_const_pools)

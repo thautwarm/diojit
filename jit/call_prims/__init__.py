@@ -24,7 +24,7 @@ def dispatch(intrinsic: object, argc: int):
 
 def setup_primitives():
     from jit.call_prims import (
-        p_add,
+        p_arith,
         p_callint,
         p_getitem,
         p_globals,

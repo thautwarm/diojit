@@ -56,6 +56,7 @@ class TupleT:
 
 @dataclass(frozen=True, eq=True)
 class FPtrT:
+    narg: int
     func: pytypes.FunctionType
 
     @staticmethod
@@ -64,6 +65,19 @@ class FPtrT:
 
     def __repr__(self):
         return f"{self.func.__name__}"
+
+
+@dataclass(frozen=True, eq=True)
+class JitFPtrT:
+    narg: int
+
+    def to_py_type(self):
+        from jit.ll.infr import NJitFunctions
+
+        return NJitFunctions[self.narg]
+
+    def __repr__(self):
+        return f"jit/{self.narg}"
 
 
 @dataclass(frozen=True, eq=True)
@@ -89,6 +103,7 @@ class ClosureT:
     def to_py_type():
         # TODO: a cython structure
         from jit.ll.closure import Closure
+
         return Closure
 
     def __repr__(self):
@@ -188,45 +203,55 @@ class UnionT:
         return "|".join(map(repr, self.alts))
 
 
-bool_members = {}
-bool_static_members = {}
-bool_t = NomT(bool, bool_members, bool_static_members)
+@dataclass(eq=True, frozen=True)
+class ConstT:
 
-int_members = {}
-int_static_members = {}
-int_t = NomT(int, int_members, int_static_members)
+    def to_py_type(self):
+        raise NotImplementedError
 
-float_members = {}
-float_static_members = {}
-float_t = NomT(float, float_members, float_static_members)
+    def __repr__(self):
+        return "const"
 
-str_members = {}
-str_static_members = {}
-str_t = NomT(str, str_members, str_static_members)
 
-tuple_members = {}
-tuple_static_members = {}
-tuple_t = NomT(tuple, tuple_members, tuple_static_members)
+bool_methods = {}
+bool_static_methods = {}
+bool_t = NomT(bool, {}, bool_methods, bool_static_methods)
 
-dict_members = {}
-dict_static_members = {}
-dict_t = NomT(dict, dict_members, dict_static_members)
+int_methods = {}
+int_static_methods = {}
+int_t = NomT(int, {}, int_methods, int_static_methods)
 
-none_members = {}
-none_static_members = {}
-none_t = NomT(NoneType, none_members, none_static_members)
+float_methods = {}
+float_static_methods = {}
+float_t = NomT(float, {}, float_methods, float_static_methods)
 
-list_members = {}
-list_static_members = {}
-list_t = NomT(list, list_members, list_static_members)
+str_methods = {}
+str_static_methods = {}
+str_t = NomT(str, {}, str_methods, str_static_methods)
 
-cell_members = {}
-cell_static_members = {}
-cell_t = NomT(cell, cell_members, cell_static_members)
+tuple_methods = {}
+tuple_static_methods = {}
+tuple_t = NomT(tuple, {}, tuple_methods, tuple_static_methods)
 
-type_members = {}
-type_static_members = {}
-type_t = NomT(type, type_members, type_static_members)
+dict_methods = {}
+dict_static_methods = {}
+dict_t = NomT(dict, {}, dict_methods, dict_static_methods)
+
+none_methods = {}
+none_static_methods = {}
+none_t = NomT(NoneType, {}, none_methods, none_static_methods)
+
+list_methods = {}
+list_static_methods = {}
+list_t = NomT(list, {}, list_methods, list_static_methods)
+
+cell_methods = {}
+cell_static_methods = {}
+cell_t = NomT(cell, {}, cell_methods, cell_static_methods)
+
+type_methods = {}
+type_static_methods = {}
+type_t = NomT(type, {}, type_methods, type_static_methods)
 
 noms = {
     dict: dict_t,
@@ -253,6 +278,10 @@ T = Union[
     TypeT,
     BottomT,
     MethT,
-    ClosureT
+    ClosureT,
+    JitFPtrT,
+    ConstT
 ]
-SurfT = Union[RefT, FPtrT, NomT, PrimT, TopT, BottomT, MethT, ClosureT]
+SurfT = Union[
+    RefT, FPtrT, NomT, PrimT, TopT, BottomT, MethT, ClosureT, JitFPtrT, ConstT
+]
