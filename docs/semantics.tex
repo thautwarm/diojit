@@ -1,0 +1,359 @@
+\documentclass[12pt, a4paper]{report}
+
+\usepackage[top=3.5cm,bottom=3cm,left=2.5cm,right=2.5cm]{geometry}
+\usepackage{amsfonts, amsmath, amsthm, amssymb}
+\usepackage[epsilon, tsrm, altpo]{backnaur}
+\usepackage{listings}
+\usepackage{natbib}
+\usepackage{mathtools}
+\lstset{language=Python, mathescape, basicstyle=\itshape}
+\bibliographystyle{unsrtnat}
+
+\newcommand{\ddfrac}[3]{
+    & #1 \\
+    & \frac { #2 } { #3 }
+}
+
+\newcommand{\rulegroup}[1]{
+    \textbf{#1}
+}
+
+\newcommand{\gap}{ \;\;\;\; }
+
+\title{Semantics for CPython Virtual Machine}
+
+\begin{document}
+
+\maketitle
+
+\section* {Variables \& Scopes}
+
+Python has 4 kinds of variables.
+
+The scope of Python is divided by function boundaries. No other Python language constructs create/destroy a scope.
+
+Any name in a scope may denote 4 kinds of variables.
+
+\begin{enumerate}
+\item \textbf{local-only variable}\mbox{}\\
+    A bound variable, but used only in the scope
+\item \textbf{cell variable}\mbox{}\\
+    A bound variable, the its definition scope has nested functions referencing this variable. This variable is in form of
+\textit{cell} data structure, in case of future mutations
+\item \textbf{free variable}\mbox{}\\
+    A cell variable comes to a nested function referencing it, and becomes a free variable. It's also a \textit{cell}
+\item \textbf{global variable}\mbox{}\\
+    Defined in the top-level of a Python module
+\end{enumerate}
+
+These variables other than global variables are stored in variable \textit{slots} created per function.
+When a function was created, an array of variables slots holding \textit{local-only}, \textit{cell} and \textit{free} variables
+will be created as well. The index of a variable in the slots is statically decided by the bytecode compiler.
+
+Particularly,  \textbf{global variables} are stored in a special hash table, which could be accessed by a Python expression \lstinline!globals()!,
+and is separately maintained per Python module.
+Users can modify global variables outside its defined module, by modifying the special hash table.
+
+
+\section* {\textbf{CoreCPY}: A Minimal Language for CPython Bytecode Instructions}
+
+A core part of Python VM instructions are given as follow
+
+\begin{bnf*}
+    \bnfprod{var}{
+               \bnftd{localvar}
+        \bnfor \bnftd{cellvar}
+        \bnfor \bnftd{freevar}
+        \bnfor \bnftd{globalvar}
+    } \\
+    \bnfprod{instr}{\bnftd{CONST} \bnfsp \bnftd{literal}}\\    
+    \bnfprod{instr}{\bnftd{LOAD} \bnfsp \bnfpn{var}}\\
+    \bnfmore{\bnfor \bnftd{STORE} \bnfsp \bnfpn{var}}\\
+    \bnfmore{\bnfor \bnftd{JUMP\_IF\_TRUE} \bnfsp \bnftd{int}}\\
+    \bnfmore{\bnfor \bnftd{JUMP} \bnfsp \bnftd{int}}\\
+    \bnfmore{\bnfor \bnftd{CALL} \bnfsp \bnftd{int}}\\
+    \bnfmore{\bnfor \bnftd{POP} \bnfsp \bnftd{int}} \\
+    \bnfmore{\bnfor \bnftd{ROT} \bnfsp \bnftd{int}} \\
+    \bnfmore{\bnfor \bnftd{RETURN}}
+\end{bnf*}
+
+
+Except for exception handling, the whole Python VM instruction set can be described in
+a set of primitive Python objects and this language.
+
+We call this language Core CPython(\textbf{CoreCPY}), which is also we'd discuss in the following contents.
+
+Extending this to support exception handling is not difficult,
+but it turns out to be annoying to do this,
+as the notations will loss conciseness and intuitions.
+
+\textit{A translation from CPython 3.9 to CoreCPY is WIP}.
+
+To introduce the semantics of \textbf{CoreCPY},
+we have to introduce Python function calls,
+a few built-in Python objects, in another word, \textit{special objects}.
+
+\section* {Python Function Calls}
+
+The protocol of Python function calls is complicated due to its dynamism for
+variadic arguments, keyword arguments and variadic keyword arguments.
+
+\begin{lstlisting}
+# 'x, y, z' are positional or keyword
+def f1(x, y, z): ...
+f1(1, 2, 3)
+f1(1, 2, z = 3)
+f1(*(1, 2, 3))
+
+# 'x, y, z' are positional-only
+def f2(x, y, z, /): ...
+
+# 'x' is positional or keyword, 'y, z' are keyword-only
+def f3(x, *, y, z): ...
+
+# 'variadic' is positional-variadic,
+# 'f' accepts many positional arguments
+def f4(*variadic): ...
+
+def f5(**kw_variadic): ...
+# etc..
+... 
+\end{lstlisting}
+
+Only one of its properties is relevant to the semantics of \textbf{CoreCPY},
+which is that if we have another Python function object defined with a suite of instructions,
+when we call it via the \textbf{CALL} instruction,
+it should \textit{at least} execute the instructions defining this function, if arguments are valid.
+
+Due to the extreme complexity and inelegance,
+Python function calls and argument passing are so far treated \textbf{opaque}
+and \textbf{foreign} in this document.
+
+As it's not very critical, we don't dig into its details.
+
+\section* {Special Objects}
+
+Special objects are given as follow
+
+\begin{equation}
+\begin{split}
+\mathbf{special\_object} & =
+                   \mathbf{int}   \\
+       & \;|\;\;\; \mathbf{str}   \\
+       & \;|\;\;\; \mathbf{bool}  \\
+       & \;|\;\;\; \mathbf{True}  \\
+       & \;|\;\;\; \mathbf{False} \\
+       & \;|\;\;\; \mathbf{None}  \\
+       & \;|\;\;\; \mathbf{type}      \\
+       & \;|\;\;\; \mathbf{getattr}   \\
+       & \;|\;\;\; \mathbf{setattr}   \\
+       & \;|\;\;\; \mathbf{globals} \\
+       & \;|\;\;\; \mathbf{locals} \\
+       & \;|\;\;\; \mathbf{make\_cell} \\
+       & \;|\;\;\; \mathbf{make\_frozen}
+\end{split}
+\end{equation}
+
+Beyond above special objects, all other Python objects can be implemented in Python itself or extensions written in C language. Only special objects concern Python's semantics.
+
+All special objects other than \textbf{make\_cell} and \textbf{make\_frozen} are primitives in Python,
+and all special objects should support following functionalities, note that $\cdot(\cdot)$ means a Python function call
+
+\begin{enumerate}
+\item An $\mathbf{int}$ object should represent an integer with arbitrary precision
+\item An object $\mathbf{s}$ typed $\mathbf{str}$
+can support random accessing with any $\mathbf{int}$ index $\mathbf{i}$,
+in form of \lstinline!getattr(str, "__getitem__")(s, i)!
+\item The $\mathbf{bool}$ object should satisfy \lstinline!type(True) is bool! and \lstinline!type(False) is bool!
+\item The $\mathbf{type}$ object is a function to access an object's type object
+\item \lstinline!getattr(s, attr)! looks up object \textbf{s}'s attribute named \textbf{attr};
+      \lstinline!getattr(s, attr, default)! looks up object \textbf{s}'s attribute named \textbf{attr},
+      if not found, returns \textbf{default}
+\item \lstinline!setattr(s, attr, value)! tries to set object \textbf{s}'s attribute named \textbf{attr} with \textbf{value};
+\item \lstinline!make_cell()! makes a cell object,
+      which is expected to be modified and read by
+      \lstinline!setattr(cell, "cell_contents", val)!
+      and \lstinline!getattr(cell, "cell_contents")!
+\item \lstinline!make_cell(o)! tells Python object \textbf{o} to reject any further modification to its attributes.
+\item WIP
+\end{enumerate}
+
+We also introduce some notations for abbreviations.
+
+\begin{enumerate}
+\item \lstinline!a.attr! denotes \vbox{} \\
+     \lstinline!getattr(a, "attr")!
+\item \lstinline!a.attr $\leftarrow$ v! denotes \vbox{} \\
+     \lstinline!setattr(a, "attr", v); a! \\
+    \lstinline!;! here is an operator to compose two expressions. \\
+    We firstly perform \lstinline!setattr(a, "cell_contents", v)!, and consequently return \lstinline!a! \\
+    The same below.
+\item \lstinline!a["key"]! denotes \vbox{} \\
+    \lstinline!getattr(type(a), "__getitem__")(a, "key")!
+\item \lstinline!a["key"] $\leftarrow$ v! denotes \vbox{} \\
+     \lstinline!getattr(type(a), "__setitem__")(a, "key", v);a!
+\end{enumerate}.
+
+\newpage
+
+\section* {Operational Semantics for \textbf{CoreCPY}}
+
+By introducing 
+\begin{itemize}
+    \item a value stack $\mathbf{S}$,
+    \item a store $\mathbf{\sigma}$,
+    \item an instruction suite $\mathbf{I}$, and
+    \item a function $const$ to map a literal in \textbf{CoreCPY} language to a Python object
+    \item a function $make\_local$ to create a Python dictionary from a given store $\mathbf{\sigma}$
+    \item $\sigma[n := val]$ will return a new store $\sigma^{'}$ instead of performing mutations.
+\end{itemize}
+we get capable of clarifying the semantics of \textbf{CoreCPY}.
+
+\hrulefill
+
+\rulegroup{VAR}
+
+\begin{equation*}
+\begin{split}
+\frac{n \in \mathbf{localvar}}{\sigma \vdash_{r-val} n \Rightarrow \sigma(n)}
+& \;\;
+\frac{n \in \mathbf{cellvar}}{\sigma \vdash_{r-val} n \Rightarrow \sigma(n).cell\_contents}
+\;\; \\ \\
+\frac{n \in \mathbf{freevar}}{\sigma \vdash_{r-val} n \Rightarrow \sigma(n).cell\_contents}
+& \;\;
+\frac{n \in \mathbf{globalvar}}{\sigma \vdash_{r-val} n \Rightarrow globals()[n]}
+\\
+\\
+\frac{n \in \mathbf{localvar}}{\sigma \vdash_{l-var} n \Rightarrow \lambda v . v}
+& \;\;
+\frac{n \in \mathbf{cellvar}}{\sigma \vdash_{l-var} n \Rightarrow \lambda v . \sigma(n).cell\_contents \leftarrow v}
+\;\; \\ \\
+\frac{n \in \mathbf{freevar}}{\sigma \vdash_{l-var} n \Rightarrow \lambda v . \sigma(n).cell\_contents \leftarrow v}
+& \;\;
+\frac{n \in \mathbf{globalvar}}{\sigma \vdash_{l-var} n \Rightarrow \lambda v. globals()[n] \leftarrow v}
+\end{split}
+\end{equation*}
+
+\hrulefill
+
+\bigbreak
+
+\rulegroup{INSTR}
+
+\begin{equation*}
+\begin{split}
+\frac{
+    S = a_1 :: a_2 :: \cdots :: a_n :: S^{'}
+}{
+    S, \sigma \vdash_{instr} \mathbf{POP}\;n \Rightarrow (S^{'}, \sigma)
+}
+\\
+\\
+\frac{\sigma \vdash_{r-val} n \Rightarrow obj}
+     {S, \sigma \vdash_{instr} \mathbf{LOAD}\; n \Rightarrow (obj :: S, \sigma)}
+\\
+\\
+\frac{}
+     {S, \sigma \vdash_{instr} \mathbf{CONST}\; l \Rightarrow (const(l) :: S, \sigma)}
+\end{split}
+\end{equation*}
+
+\begin{equation*}
+\begin{split}
+\frac{ \sigma \vdash_{l-val} n \Rightarrow L \;\;\;\; S = obj::S^{'}}
+     { S, \sigma \vdash_{instr} \mathbf{STORE} \; n \Rightarrow (S^{'}, \sigma[n := L(obj)])}
+\\
+\\
+\frac{
+    S = a_1 :: a_2 :: \cdots :: a_n :: S^{'}
+}{
+    S, \sigma \vdash_{instr} \mathbf{ROT}\;n 
+    \Rightarrow
+    (a_n :: a_1 :: a_2 :: \cdots :: a_{n - 1} :: S^{'}, \sigma)
+}
+\\
+\\
+\end{split}
+\end{equation*}
+
+\begin{equation*}
+\begin{split}
+\frac{
+    S = \mathbf{locals} :: S^{'}
+}{
+    S, \sigma \vdash_{instr} \mathbf{CALL}\;0 \Rightarrow (make\_local(\sigma)::S^{'}, \sigma)
+}
+\\
+\\
+\frac{
+    S = a_1 :: a_2 :: \cdots :: a_n :: f :: S^{'}
+    \gap
+    f(a_1, a_2, \cdots, a_n) = e
+}{
+    S, \sigma \vdash_{instr} \mathbf{CALL}\;n \Rightarrow (e::S^{'}, \sigma)
+}
+\end{split}
+\end{equation*}
+
+\hrulefill
+
+\rulegroup{JUMP}
+
+\begin{equation*}
+\begin{split}
+\frac{ I(i) = \mathbf{JUMP} \; \mathit{off} \;\;\;\; I, S, \sigma \vdash_{jump} \mathit{off} \Rightarrow obj}
+     { I, S, \sigma \vdash_{jump} i \Rightarrow obj}
+\end{split}
+\end{equation*}
+
+\begin{equation*}
+\begin{split}
+\ddfrac{
+    I(i) = \mathbf{JUMP\_IF\_TRUE} \; \mathit{off}
+    \gap
+    S = obj :: S^{'}
+}{
+     type(obj).\_\_bool\_\_(obj) = True
+     \gap
+    I, S^{'}, \sigma \vdash_{jump} \mathit{off} \Rightarrow obj
+}{ I, S, \sigma \vdash_{jump} i \Rightarrow obj }
+\\ \\
+\ddfrac{
+    I(i) = \mathbf{JUMP\_IF\_TRUE} \; \mathit{off}
+    \gap
+    S = obj :: S^{'}
+}{
+    type(obj).\_\_bool\_\_(obj) = False
+    \gap
+    I, S^{'}, \sigma \vdash_{jump} \mathit{i}+1 \Rightarrow obj
+}{ I, S, \sigma \vdash_{jump} i \Rightarrow obj}
+\end{split}
+\end{equation*}
+
+\begin{equation*}
+\begin{split}
+& \dfrac{
+    I(i) = \mathit{instr}
+    \gap
+    S, \sigma \vdash_{instr} instr \Rightarrow (S^{'}, \sigma^{'})
+    \gap
+    I, S^{'}, \sigma^{'} \vdash_{jump} i + 1 \Rightarrow obj
+}{
+    I, S, \sigma \vdash_{jump} i \Rightarrow obj
+}
+\\ \\
+& \dfrac{
+    I(i) = \mathit{RETURN}
+    \gap
+    S = obj :: S^{'}
+}{
+    I, S, \sigma \vdash_{jump} i \Rightarrow obj
+}    
+\end{split}
+\end{equation*}
+
+\hrulefill
+
+% \bibliography{bib}
+
+\end{document}

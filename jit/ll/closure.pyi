@@ -1,0 +1,13 @@
+from typing import Generic, TypeVar
+
+__all__ = ["Closure"]
+C = TypeVar("C")
+F = TypeVar("F")
+
+class Closure(Generic[C, F]):
+    def __init__(self, cell: C, func: F): ...
+    def __call__(self, *args): ...
+    @property
+    def cell(self) -> C: ...
+    @property
+    def func(self) -> F: ...

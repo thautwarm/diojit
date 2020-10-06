@@ -1,1 +1,0 @@
-cat example/loop.i | _build/default/bin/main.exe

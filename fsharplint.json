@@ -1,0 +1,10 @@
+{
+    "globals": {
+        "publicValuesNames": {
+            "enabled": true,
+            "config": {
+                "underscores": "AllowAny"
+            }
+        }
+    }
+}

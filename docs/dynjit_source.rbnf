@@ -1,0 +1,18 @@
+repr ::= 'S' '$\mathbf{constant}$' | 'D' '$\mathbf{var}$' ;
+
+instr ::= var '=' 'call' repr (repr '*')
+      |   var '=' repr
+      |   'return' repr
+      |   'goto' '$\mathbf{label}$'
+      |   'if' repr 'goto' '$\mathbf{label}$' 'goto' '$\mathbf{label}$'
+      ;
+
+move ::= var '$\\leftarrow$' var;
+
+PPPHHHIII ::= '$\mathbf{label}$' ':' move '*';
+
+basicblock ::= 'label' '$\mathbf{label}$' ':' 'PPPHHHIII' '[' PPPHHHIII '*' ']' instr '+' ;
+
+entryblock ::= 'label' 'entry' ':' 'PPPHHHIII' '[' PPPHHHIII '*' ']' instr '+';
+
+basicblocks ::= entryblock basicblock '*';
