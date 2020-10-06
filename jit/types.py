@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Sequence, Dict, Set
+from typing import Sequence, Dict, Set, FrozenSet
 from typing import Union, TYPE_CHECKING
 from dataclasses import dataclass
 import ctypes
@@ -191,9 +191,9 @@ class TypeT:
         return f"type<{self.type}>"
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(eq=True, frozen=True, unsafe_hash=True)
 class UnionT:
-    alts: Set[T]
+    alts: FrozenSet[T]
 
     @staticmethod
     def to_py_type():

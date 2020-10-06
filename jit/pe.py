@@ -36,6 +36,7 @@ class DEBUG(Enum):
     print_relooped_dynjit_ir = auto()
     print_generated_cython = auto()
     print_func_addr = auto()
+    print_core_cpy = auto()
 
 
 class Compiler:
@@ -45,7 +46,7 @@ class Compiler:
         self.spec_stack = set()
         self.corecpy = {}
         self.awared = set()
-        self.debug = {*DEBUG}
+        self.debug = set()
 
     @staticmethod
     def assume(pytype: type):
@@ -71,6 +72,21 @@ class Compiler:
             raise TypeError(type(o))
         return o
 
+    def optimize_by_shapes(
+        self, func: pytypes.FunctionType, *types: types.T
+    ) -> pytypes.FunctionType:
+        func = self.specialise(func, *types)
+        # noinspection PyTypeChecker
+        return func.method.repr.c
+
+    def optimize_by_args(
+        self, func: pytypes.FunctionType, *args
+    ) -> pytypes.FunctionType:
+        types = map(prims.ct, args)
+        func = self.specialise(func, *types)
+        # noinspection PyTypeChecker
+        return func.method.repr.c
+
     def specialise(
         self, func: pytypes.FunctionType, *arg_types
     ) -> Optional[Specialised]:
@@ -92,7 +108,10 @@ class Compiler:
             bytecode = dis.Bytecode(func.__code__)
             (I) = list(CoreCPY.from_pyc(bytecode))
             self.corecpy[func] = I
-
+        if DEBUG.print_core_cpy in self.debug:
+            print('core cpy'.center(50, '='))
+            for each in I:
+                print(each)
         uninitialized_count = calc_initial_stack_size(
             func.__code__
         ) - len(arg_types)
@@ -120,7 +139,7 @@ class Compiler:
 
         _glob = ChainMap(builtins.__dict__, glob)
         glob_type = prims.ct(_glob)
-        glob_abs_val = dynjit.AbstractValue(dynjit.S(glob), glob_type)
+        glob_abs_val = dynjit.AbstractValue(dynjit.S(_glob), glob_type)
         pe = PE(glob_abs_val, self, I)
         dynjit_code = list(pe.infer(S, 0))
         return_types = pe.return_types
@@ -129,7 +148,7 @@ class Compiler:
         elif len(return_types) == 1:
             ret_t = return_types[0]
         else:
-            ret_t = types.UnionT(set(return_types))
+            ret_t = types.UnionT(frozenset(return_types))
 
         # TODO
 
@@ -231,7 +250,12 @@ class PE:
                 untyped_abs_val = abs_val
 
                 abs_val_spec = dynjit.AbstractValue(abs_val.repr, end_t)
-                last = list(self.infer(stack.cons(abs_val_spec, s), p))
+                last = list(
+                    itertools.chain(
+                        (dynjit.Assign(abs_val_spec, untyped_abs_val),),
+                        self.infer(stack.cons(abs_val_spec, s), p),
+                    )
+                )
                 for end_t in init:
                     abs_val_spec = dynjit.AbstractValue(
                         abs_val.repr, end_t
@@ -241,7 +265,17 @@ class PE:
                         dynjit.TypeCheck(
                             untyped_abs_val,
                             end_t,
-                            list(self.infer(s_spec, p)),
+                            list(
+                                itertools.chain(
+                                    (
+                                        dynjit.Assign(
+                                            abs_val_spec,
+                                            untyped_abs_val,
+                                        ),
+                                    ),
+                                    self.infer(s_spec, p),
+                                )
+                            ),
                             last,
                         )
                     ]
@@ -321,7 +355,22 @@ class PE:
                     [dynjit.Call(prims.v_asbool, [a]), expect],
                 )
             else:
+                if isinstance(a.repr, dynjit.S):
+                    cond_lit = a.repr.c is instr.expect
+                    if cond_lit:
+                        if instr.keep:
+                            yield from self.infer(
+                                s, self.find_p(instr.lbl)
+                            )
+                        else:
+                            yield from self.infer(
+                                s_new, self.find_p(instr.lbl)
+                            )
+                    else:
+                        yield from self.infer(s_new, p + 1)
+                    return
                 cond = dynjit.Call(prims.v_beq, [a, expect])
+
             if instr.keep:
                 arm1 = list(self.infer(s, self.find_p(instr.lbl)))
             else:

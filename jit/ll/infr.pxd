@@ -55,6 +55,8 @@ cdef extern from "Python.h":
     object dynjit_method_get_func "PyMethod_GET_FUNCTION"(object meth)
     object dynjit_method_new "PyMethod_New"(object func, object self)
 
+    double PyFloat_AS_DOUBLE(object op)
+    object PyFloat_FromDouble(double fval)
     double PyLong_AsDouble(object) except? -1.0
     object PyNumber_Add(object o1, object o2)
 
@@ -92,10 +94,10 @@ cdef inline void dynjit_setoffset(object subject, int offset, object value):
     attr_ref[0] = v
 
 cdef binaryfunc dynjit_long_add
-cdef binaryfunc dynjit_float_add
+cdef object dynjit_float_add(object, object)
 cdef richcmpfunc dynjit_long_richcmp
-cdef richcmpfunc dynjit_float_richcmp
 cdef richcmpfunc dynjit_str_richcmp
+cdef richcmpfunc dynjit_float_richcmp
 
 cdef inline object dynjit_int_to_float(object x):
     return PyLong_AsDouble(x)

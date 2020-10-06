@@ -51,9 +51,42 @@ class AbstractValue:
 
     def __post_init__(self):
         assert isinstance(self.repr, (S, D))
+        from jit.types import (
+            RecordT,
+            RefT,
+            FPtrT,
+            NomT,
+            PrimT,
+            TopT,
+            BottomT,
+            MethT,
+            ClosureT,
+            JitFPtrT,
+            ConstT,
+        )
+
+        assert isinstance(
+            self.type,
+            (
+                RecordT,
+                RefT,
+                FPtrT,
+                NomT,
+                PrimT,
+                TopT,
+                BottomT,
+                MethT,
+                ClosureT,
+                JitFPtrT,
+                ConstT,
+            ),
+        ), self.type.__class__.__name__
 
     def __repr__(self):
         return f"<{self.type}>{self.repr}"
+
+    def __call__(self, *args: Expr):
+        return Call(self, args)
 
     def with_type(self, ty: types.T):
         return AbstractValue(self.repr, ty)
@@ -69,6 +102,9 @@ class Call:
         assert isinstance(self.f, (Call, AbstractValue)) and all(
             isinstance(e, (Call, AbstractValue)) for e in self.args
         )
+
+    def __call__(self, *args: Expr):
+        return Call(self, args)
 
     def __repr__(self):
         return "{}({})".format(

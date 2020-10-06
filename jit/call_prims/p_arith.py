@@ -25,12 +25,12 @@ def spec_sub(self: PE, args, s, p):
         yield from self.infer(s, p + 1)
     elif l.type is types.int_t and r.type is types.float_t:
         abs_val = dynjit.AbstractValue(repr, types.float_t)
-        yield dynjit.Assign(abs_val, dynjit.Call(prims.v_fsub, [l, r]))
+        yield dynjit.Assign(abs_val, prims.v_fsub(prims.v_i2f(l), r))
         s = stack.cons(abs_val, s)
         yield from self.infer(s, p + 1)
     elif r.type is types.int_t and l.type is types.float_t:
         abs_val = dynjit.AbstractValue(repr, types.float_t)
-        yield dynjit.Assign(abs_val, dynjit.Call(prims.v_fsub, [l, r]))
+        yield dynjit.Assign(abs_val, prims.v_fsub(l, prims.v_i2f(r)))
         s = stack.cons(abs_val, s)
         yield from self.infer(s, p + 1)
     else:
@@ -58,12 +58,17 @@ def spec_add(self: PE, args, s, p):
         yield dynjit.Assign(abs_val, dynjit.Call(prims.v_fadd, [l, r]))
         s = stack.cons(abs_val, s)
         yield from self.infer(s, p + 1)
-    elif (l.type is types.int_t and r.type is types.float_t
-          or l.type is types.float_t and r.type is types.int_t):
+    elif l.type is types.int_t and r.type is types.float_t:
         abs_val = dynjit.AbstractValue(repr, types.float_t)
-        yield dynjit.Assign(abs_val, dynjit.Call(prims.v_fadd, [l, r]))
+        yield dynjit.Assign(abs_val, prims.v_fadd(prims.v_i2f(l), r))
         s = stack.cons(abs_val, s)
         yield from self.infer(s, p + 1)
+    elif l.type is types.float_t and r.type is types.int_t:
+        abs_val = dynjit.AbstractValue(repr, types.float_t)
+        yield dynjit.Assign(abs_val, prims.v_fadd(l, prims.v_i2f(r)))
+        s = stack.cons(abs_val, s)
+        yield from self.infer(s, p + 1)
+
     elif l.type is types.str_t and r.type is types.str_t:
         abs_val = dynjit.AbstractValue(repr, types.str_t)
         yield dynjit.Assign(
@@ -130,7 +135,7 @@ def spec_lt(self: PE, args, s, p):
                 abs_val,
                 dynjit.Call(
                     prims.v_frichcmp,
-                    [l, dynjit.Call(prims.v_i2f, [r]), lt_flag],
+                    [l, (prims.v_i2f, [r]), lt_flag],
                 ),
             )
             s = stack.cons(abs_val, s)

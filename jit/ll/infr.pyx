@@ -1,9 +1,35 @@
 from cpython cimport PyObject
 from libc cimport stdint
 cdef binaryfunc dynjit_long_add = dynjit_helper_nb_add(dynjit_helper_tp_as_number(int))
-cdef binaryfunc dynjit_float_add = dynjit_helper_nb_add(dynjit_helper_tp_as_number(float))
+
+# slow:
+# cdef binaryfunc dynjit_float_add = dynjit_helper_nb_add(dynjit_helper_tp_as_number(float))
+cdef object dynjit_float_add(object f1, object f2):
+    return PyFloat_FromDouble(PyFloat_AS_DOUBLE(f1) + PyFloat_AS_DOUBLE(f2))
+
 cdef richcmpfunc dynjit_long_richcmp = dynjit_helper_tp_richcompare(int)
-cdef richcmpfunc dynjit_float_richcmp = dynjit_helper_tp_richcompare(float)
+
+cdef object _dynjit_float_richcmp(object f1, object f2, int op):
+    cdef:
+        double l = PyFloat_AS_DOUBLE(f1)
+        double r = PyFloat_AS_DOUBLE(f2)
+    if op == Py_EQ:
+        return True if l == r else False
+    elif op == Py_NE:
+        return True if l != r else False
+    elif op == Py_LT:
+        return True if l < r else False
+    elif op == Py_GT:
+        return True if l > r else False
+    elif op == Py_LE:
+        return True if l <= r else False
+    elif op == Py_GE:
+        return True if l >= r else False
+    else:
+        PyErr_SetObject(ValueError, "unknown rich compare operator")
+        return dynjit_py_err()
+
+cdef richcmpfunc dynjit_float_richcmp = _dynjit_float_richcmp # dynjit_helper_tp_richcompare(float)
 cdef richcmpfunc dynjit_str_richcmp = dynjit_helper_tp_richcompare(str)
 
 def _long_add(a, b):

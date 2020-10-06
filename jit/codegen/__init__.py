@@ -87,10 +87,11 @@ class Emit:
         elif isinstance(reg.type, types.JitFPtrT):
             assert isinstance(reg.repr, dynjit.S)
             # noinspection PyUnresolvedReferences
-            return f"(<cfunc{len(self.args)}>{reg.repr.c.addr})"
+            return f"(<cfunc{reg.type.narg}><uint64_t>{reg.repr.c.addr})"
         elif isinstance(reg.repr, dynjit.S):
             return self.const_of(reg.repr.c)
         return self.reg_names[reg.repr.n, reg.type]
+
 
     def newline(self):
         self.io.write("\n")
@@ -108,6 +109,7 @@ class Emit:
         self.io.write(PIECE * (self.indent_level if i is None else i))
 
     def visit_expr(self, x: Expr):
+
         emit_expr(self, x)
 
     def visit_stmt(self, x: Stmt):
@@ -224,7 +226,7 @@ class Emit:
         self.write("if type(")
         self.visit_expr(x.expr)
         self.write(") is ")
-        self.visit_expr(self.const_of(x.type.to_py_type()))
+        self.write(self.const_of(x.type.to_py_type()))
         self.write(":")
 
         self.newline()

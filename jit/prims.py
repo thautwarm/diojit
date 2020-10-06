@@ -54,7 +54,8 @@ def ct(ac):
     if isinstance(ac, Mapping):
         fixed = ac.get("__fix__")
         if fixed:
-            return types.RecordT({k: ct1(ac[k]) for k in fixed})
+            d = {k: ct1(ac[k]) for k in fixed}
+            return types.RecordT(d)
 
     return ct2(ac)
 
