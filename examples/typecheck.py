@@ -16,9 +16,8 @@ __fix__ = [
     "float",
     "str",
 ]
-c.debug.add(DEBUG.print_dynjit_ir)
-
-c.debug.add(DEBUG.print_generated_cython)
+# c.debug.add(DEBUG.print_dynjit_ir)
+# c.debug.add(DEBUG.print_generated_cython)
 
 @c.aware
 def one(x):
@@ -61,12 +60,12 @@ from timeit import timeit
 
 
 print(
-    timeit("pp(0.0, 100)", globals=dict(pp=pp_float), number=1000000),
+    timeit("pp(0.0, 10)", globals=dict(pp=pp_float), number=1000000),
     "s/1000000 call",
 )
 
 
 print(
-    timeit("pp(0.0, 100)", globals=dict(pp=pp), number=1000000),
+    timeit("pp(0.0, 10)", globals=dict(pp=pp), number=1000000),
     "s/1000000 call",
 )

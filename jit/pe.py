@@ -43,7 +43,7 @@ class Compiler:
     def __init__(self):
         setup_primitives()
         self.methods = {}
-        self.spec_stack = set()
+        self.spec_stack = []
         self.corecpy = {}
         self.awared = set()
         self.debug = set()
@@ -102,14 +102,14 @@ class Compiler:
         m = self.methods.get(key)
         if m is not None:
             return m
-        self.spec_stack.add(key)
+        self.spec_stack.append(key)
         (I) = self.corecpy.get(func)
         if I is None:
             bytecode = dis.Bytecode(func.__code__)
             (I) = list(CoreCPY.from_pyc(bytecode))
             self.corecpy[func] = I
         if DEBUG.print_core_cpy in self.debug:
-            print('core cpy'.center(50, '='))
+            print("core cpy".center(50, "="))
             for each in I:
                 print(each)
         uninitialized_count = calc_initial_stack_size(
@@ -143,6 +143,8 @@ class Compiler:
         pe = PE(glob_abs_val, self, I)
         dynjit_code = list(pe.infer(S, 0))
         return_types = pe.return_types
+        self.spec_stack.pop()
+
         if not return_types:
             raise ValueError(func)
         elif len(return_types) == 1:

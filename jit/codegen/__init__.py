@@ -23,6 +23,8 @@ PIECE = "  "
 class Emit:
     def __init__(self, args: Sequence[dynjit.AbstractValue]):
         self.reg_names = MissingDict(lambda x: f"d{x}")
+        self.func_defs = []
+        self.func_ptrs = {}
         self.lbls = MissingDict(lambda x: x)
         self.generated_lbls = set()
         self.hashable_const_pools = {}
@@ -34,16 +36,18 @@ class Emit:
     def code_generation(self) -> Tuple[list, str]:
         io = StringIO()
         initializations = []
-        io.write('# cython: infer_types=True\n')
-        io.write('# cython: language_level=3str\n')
+        io.write("# cython: infer_types=True\n")
+        io.write("# cython: language_level=3str\n")
         io.write("from jit.ll.infr cimport *\n")
         io.write("from libc.stdint cimport uint64_t\n")
+        io.writelines(self.func_defs)
+        io.write('\n')
         for (c, n) in chain(
             self.hashable_const_pools.items(),
             self.unhashable_const_pools,
         ):
             setter = f"set_const_{n}"
-            io.write(f'# {c!r}\n')
+            io.write(f"# {c!r}\n")
             io.write(f"cdef object {n}\n")
             io.write(f"def {setter}(object o):\n")
             io.write(f"  global {n}\n")
@@ -83,15 +87,24 @@ class Emit:
 
     def get_reg_name(self, reg: dynjit.AbstractValue):
         if isinstance(reg.type, types.ConstT):
-            return f'({reg.repr.c!r})'
+            return f"({reg.repr.c!r})"
         elif isinstance(reg.type, types.JitFPtrT):
             assert isinstance(reg.repr, dynjit.S)
             # noinspection PyUnresolvedReferences
-            return f"(<cfunc{reg.type.narg}><uint64_t>{reg.repr.c.addr})"
+            addr: str = hex(reg.repr.c.addr)
+            func_name = self.func_ptrs.get(addr)
+            if not func_name:
+                func_name = f"cf{len(self.func_ptrs)}"
+                narg = reg.type.narg
+                self.func_defs.append(
+                    f"cdef cfunc{narg} {func_name} = <cfunc{narg}>(<uint64_t>{addr})"
+                )
+                self.func_ptrs[addr] = func_name
+
+            return func_name
         elif isinstance(reg.repr, dynjit.S):
             return self.const_of(reg.repr.c)
         return self.reg_names[reg.repr.n, reg.type]
-
 
     def newline(self):
         self.io.write("\n")
