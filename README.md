@@ -13,13 +13,12 @@ c = Compiler()
 
 # '__fix__' is required for specifying constant global references
 __fix__ = [
-    "pp",
-    "float",
-    "isinstance",
-    "one",
     "int",
     "float",
     "str",
+    "isinstance",
+    "pp",    
+    "one",
 ]
 
 # print output dynjit ir
