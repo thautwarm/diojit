@@ -68,6 +68,14 @@ def i_sconcat(a: str, b: str):
     return a + b
 
 
+def i_isub(a: int, b: int):
+    return a - b
+
+
+def i_fsub(a: float, b: float):
+    return a - b
+
+
 def i_i2f(a: int):
     return float(a)
 

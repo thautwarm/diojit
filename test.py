@@ -28,8 +28,8 @@ print(pp(12.0))
 print(pp(19.0))
 
 mod = compile_module("""
-cpdef float pp(float x):
-    cdef float j = 2.0
+cpdef float pp(double x):
+    cdef double j = 2.0
     while x < 20.0:
         j = j + x
         x = x + 3.0
