@@ -4,6 +4,7 @@ obj/
 node_modules/
 .fake
 .idea/
+.ci/
 typeshed/
 
 **__pycache__/
