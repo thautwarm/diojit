@@ -1,8 +1,6 @@
-from jit import types, dynjit
+from jit import types
 from jit.pe import Compiler, DEBUG
-from jit.ll.closure import Closure
-from jit.codegen.cython_loader import compile_module
-
+from timeit import timeit
 
 c = Compiler()
 
@@ -16,8 +14,9 @@ __fix__ = [
     "float",
     "str",
 ]
-# c.debug.add(DEBUG.print_dynjit_ir)
-# c.debug.add(DEBUG.print_generated_cython)
+c.debug.add(DEBUG.print_dynjit_ir)
+c.debug.add(DEBUG.print_generated_cython)
+
 
 @c.aware
 def one(x):
@@ -33,39 +32,25 @@ def one(x):
 def pp(x, n):
     j = 0
     s = x
-    _1 = one(x)
     while j < n:
-        s = s + _1
+        s = s + one(s)
         j = j + 1
     return s
 
 
 # pp_int = c.optimize_by_shapes(pp, types.int_t, types.int_t)
-pp_float = c.optimize_by_shapes(pp, types.float_t, types.int_t)
-print(pp_float(0.0, 10))
+pp_int = c.optimize_by_shapes(pp, types.int_t, types.int_t)
+print(pp_int(0, 10))
 print(pp(0, 10))
-
-# mod = compile_module(
-#     """
-# cpdef float pp(double x):
-#     cdef double j = 2.0
-#     while x < 20.0:
-#         j = j + x
-#         x = x + 3.0
-#     return j
-# """
-# )
-#
-from timeit import timeit
 
 
 print(
-    timeit("pp(0.0, 10)", globals=dict(pp=pp_float), number=1000000),
+    timeit("pp(0, 10)", globals=dict(pp=pp_int), number=1000000),
     "s/1000000 call",
 )
 
 
 print(
-    timeit("pp(0.0, 10)", globals=dict(pp=pp), number=1000000),
+    timeit("pp(0, 10)", globals=dict(pp=pp), number=1000000),
     "s/1000000 call",
 )

@@ -99,9 +99,10 @@ class Call:
     type: types.T = field(default=None)
 
     def __post_init__(self):
-        assert isinstance(self.f, (Call, AbstractValue)) and all(
+        assert isinstance(self.f, (Call, AbstractValue))
+        assert all(
             isinstance(e, (Call, AbstractValue)) for e in self.args
-        )
+        ), self.args
 
     def __call__(self, *args: Expr):
         return Call(self, args)

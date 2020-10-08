@@ -3,6 +3,7 @@ from jit.call_prims import register_dispatch, NO_SPECIALIZATION
 from jit.ll import get_slot_member_offset
 from jit.pe import PE
 from typing import cast
+from _json import encode_basestring
 
 
 @register_dispatch(intrinsics.i_getattr, 2)
@@ -14,7 +15,29 @@ def spec1(self: PE, args, s, p):
     if r.type is types.str_t and isinstance(r.repr, dynjit.S):
         r_val = cast(str, r.repr.c)
         l_type = l.type
-        if isinstance(l_type, types.NomT):
+        const_attrname = prims.mk_v_const_sym(encode_basestring(r_val))
+
+        if not isinstance(l_type, types.NomT):
+            pytype = l_type.to_py_type()
+            if r_val in getattr(pytype, "__slots__", ()):
+                offset = prims.mk_v_const_sym(
+                    repr(get_slot_member_offset(getattr(pytype, r_val)))
+                )
+                abs_val = dynjit.AbstractValue(
+                    dynjit.D(n), types.TopT()
+                )
+                yield dynjit.Assign(
+                    abs_val,
+                    dynjit.Call(
+                        prims.v_getoffset,
+                        [l, offset, const_attrname],
+                        type=abs_val.type,
+                    ),
+                )
+                s = stack.cons(abs_val, s)
+                yield from infer(s, p + 1)
+                return
+        else:
             if r_val in l_type.members:
                 ret_t = l_type.members[r_val]
                 abs_val = dynjit.AbstractValue(dynjit.D(n), ret_t)
@@ -23,19 +46,18 @@ def spec1(self: PE, args, s, p):
                     getattr(pytype, "__slots__", None)
                     and r_val in pytype.__slots__
                 ):
-                    offset = dynjit.AbstractValue(
-                        dynjit.S(
+                    offset = prims.mk_v_const_sym(
+                        repr(
                             get_slot_member_offset(
                                 getattr(pytype, r_val)
                             )
-                        ),
-                        types.int_t,
+                        )
                     )
                     yield dynjit.Assign(
                         abs_val,
                         dynjit.Call(
                             prims.v_getoffset,
-                            [l, offset, r],
+                            [l, offset, const_attrname],
                             type=ret_t,
                         ),
                     )
