@@ -133,3 +133,11 @@ def i_frichcmp(a, b, op: int):
 
 def i_srichcmp(a, b, op: int):
     raise NotImplemented
+
+
+def i_clogetfunc(x):
+    raise NotImplemented
+
+
+def i_clogetcell(x):
+    raise NotImplemented

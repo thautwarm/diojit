@@ -63,6 +63,7 @@ class AbstractValue:
             ClosureT,
             JitFPtrT,
             ConstT,
+            TupleT
         )
 
         assert isinstance(
@@ -79,6 +80,7 @@ class AbstractValue:
                 ClosureT,
                 JitFPtrT,
                 ConstT,
+                TupleT
             ),
         ), self.type.__class__.__name__
 

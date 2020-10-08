@@ -97,7 +97,7 @@ class Emit:
                 func_name = f"cf{len(self.func_ptrs)}"
                 narg = reg.type.narg
                 self.func_defs.append(
-                    f"cdef cfunc{narg} {func_name} = <cfunc{narg}>(<uint64_t>{addr})"
+                    f"cdef cfunc{narg} {func_name} = <cfunc{narg}>(<uint64_t>{addr})\n"
                 )
                 self.func_ptrs[addr] = func_name
 

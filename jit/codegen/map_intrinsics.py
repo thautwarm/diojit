@@ -87,7 +87,14 @@ def map_intrinsic_call(
         return call_args_with_cython_func(
             self, "dynjit_str_richcmp", args
         )
-
+    elif f is v_clogetfunc:
+        return call_args_with_cython_func(
+            self, "dynjit_closure_get_func", args
+        )
+    elif f is v_clogetcell:
+        return call_args_with_cython_func(
+            self, "dynjit_closure_get_cell", args
+        )
     elif len(args) == 1:
         if f is v_asbool:
             self.write("(")

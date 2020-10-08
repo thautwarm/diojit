@@ -10,6 +10,7 @@ from jit.call_prims import (
 from typing import List, Optional, Sequence, Dict, Union, Set
 from dataclasses import dataclass, field
 from enum import Enum, auto
+from _json import encode_basestring
 import types as pytypes
 import dis
 import itertools
@@ -437,23 +438,14 @@ class PE:
                 v_args = [expr_self, *v_args]
                 return (yield from iterate_desugar(f, v_args))
             if isinstance(t_f, types.ClosureT):
-                # noinspection PyTypeChecker
-                func_off = prims.mk_v_int(
-                    get_slot_member_offset(Closure.func)
-                )
-                # noinspection PyTypeChecker
-                cell_off = prims.mk_v_int(
-                    get_slot_member_offset(Closure.cell)
-                )
-
                 expr_self = dynjit.Call(
-                    prims.v_getoffset,
-                    [f, cell_off, prims.mk_v_str("cell")],
+                    prims.v_clogetcell,
+                    [f],
                     type=t_f.cell,
                 )
                 f: dynjit.Call = dynjit.Call(
-                    prims.v_getattr,
-                    [f, func_off, prims.mk_v_str("func")],
+                    prims.v_clogetfunc,
+                    [f],
                     type=t_f.func,
                 )
                 v_args = [expr_self, *v_args]

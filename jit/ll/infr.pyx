@@ -4,8 +4,9 @@ cdef binaryfunc dynjit_long_add = dynjit_helper_nb_add(dynjit_helper_tp_as_numbe
 
 # slow:
 # cdef binaryfunc dynjit_float_add = dynjit_helper_nb_add(dynjit_helper_tp_as_number(float))
-cdef object dynjit_float_add(object f1, object f2):
-    return PyFloat_FromDouble(PyFloat_AS_DOUBLE(f1) + PyFloat_AS_DOUBLE(f2))
+cdef object _dynjit_float_add(object f1, object f2):
+     return PyFloat_FromDouble(PyFloat_AS_DOUBLE(f1) + PyFloat_AS_DOUBLE(f2))
+cdef binaryfunc dynjit_float_add = _dynjit_float_add
 
 cdef richcmpfunc dynjit_long_richcmp = dynjit_helper_tp_richcompare(int)
 
@@ -128,3 +129,12 @@ NJitFunctions = {
     4: JitFunction4,
     5: JitFunction5
 }
+
+
+cdef class Closure:
+    def __cinit__(self, cell, fptr):
+        self.cell = cell
+        self.func = fptr
+
+    def __call__(self, *args):
+        return self.func(self.cell, *args)
