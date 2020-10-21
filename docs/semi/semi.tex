@@ -212,7 +212,7 @@ The semantics for Core CPY is similar to Python bytecode, which is operated by a
 \begin{center}
 Formula 1. Syntax of Core CPY
 \end{center}
-
+\vspace{2em}
 
 Part of the semantics of Core CPY are given below. Other instructions are omitted to avoid the introduction of heavy prerequisites.
 
@@ -234,6 +234,8 @@ Part of the semantics of Core CPY are given below. Other instructions are omitte
 \begin{center}
 Formula 2. Semantics for the instructions POP and PEEK
 \end{center}
+\vspace{2em}
+
 
 Core CPY is the input of the partial evaluation.
 
@@ -416,33 +418,28 @@ else:
 \end{lstlisting}
 
 
-\section*{Progress}
+\section*{Conclusion}
 
-Dynjit has been now prototyped and shown a large factor of performance improvement over several kinds of Python programs, such as attribute accessing,
-loops, union types, reading global variables, closure constructions and dynamic dispatch. The program that can be optimized is restricted,
-for instance, attribute accessing can have a \textbf{1.5x} speed up when the attribute is a \lstinline!"__slots__"! field,
-and the speed up for type specialized programs depends on the complexity of programs, and can usually produce a factor
-of $>$ \textbf{3.5x}.
+Currently, Dynjit has been prototyped, and has shown a large factor of performance improvement over several kinds of Python programs, such as attribute accessing,
+loops, union types, reading global variables, closure constructions and dynamic dispatch.
 
-However, the speed up is now not that dramatic due to the following reasons.
+4 large examples are contrived to involve all kinds of Python programs mentioned above, and have been benchmarked. As a result, attribute accessing can have a \textbf{1.5x} speed up when the attributes are \lstinline!"__slots__"! fields.
+The speed up for type specialized programs depends, but usually produces a factor of $>$ \textbf{3.5x}.
+The factor for type specialized programs can be dramatic($>$ \textbf{14x} in \textit{typecheck.py} example)
+when there are stacked if statements performing runtime types checks.
 
-\begin{enumerate}
-    \item Dynjit now does no object unboxing
-    \item It's hard to measure the effect of several optimizations when they collaborate together.
-\end{enumerate}
+The formalization part of our compilation scheme is still in work-in-progress, which is the most important in the following research.
+The code for our prototype is available in the same-name GitHub repository for the purpose of reproduction.
 
-The code of Dynjit prototype is available in the same-name GitHub repository for reproduction purpose.
+\section*{Future Work}
 
-
-\section*{Future Outlook}
-
-Paper works are now the focus of our research.
+Paper works and formalizations are now the focus of our research.
 
 Dynjit widely adopts ideas from many existing attempts and some other programming languages, and has made progress.
-It's crucial for us to present paper works and accept peer reviews, which contributes to the solution to Python performance issues,
+It is crucial for us to present paper works and accept peer reviews, which contributes to the solution to Python performance issues,
 and helps to the stabilization of the research production.
 
-On the opposite direction, to address some existing restrictions to current Dynjit, radical evolutions might be applied.
+On the opposite, to address some existing restrictions to current Dynjit, radical evolutions might be applied.
 For instance, it's hard for us to optimize recursive functions, and the runtime generated code can be overly large.
 
 Dynjit now can optimize a limited set of Python language features, we are to work on the optimizers
