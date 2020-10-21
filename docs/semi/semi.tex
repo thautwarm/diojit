@@ -13,7 +13,7 @@
 \usepackage{CJK}
 \usepackage{bussproofs}
 \usepackage[epsilon, tsrm, altpo]{backnaur}
-
+\lstset{captionpos=b}
 
 
 \newcommand{\seq}[2]{
@@ -59,24 +59,19 @@
 \maketitle
 
 \begin{abstract}
-Python has been a popular programming language,
-and widely used in various fields such as scientific computing,
-web applications, data analysis and machine learning. However,
-its popularity worsens the performance issues of computation-intensive Python programs.
-To address this, many attempts for Python Just-In-Time(JIT) compilers have been made during the last 30 years.
-These attempts are either domain-specific, CPython-incompatible, or never finished. 
+Since the last decade, Python has been a most popular programming language,
+and widely used in various fields. However, its popularity worsens the performance issues of computation-intensive Python programs.
+To address this, many attempts about Python Just-In-Time(JIT) compilers have been made during the last 30 years.
+These attempts are either domain-specific, CPython-incompatible, or never finished.
 After taking lessons from previous attempts, inspired by recent JIT successes for dynamic programming languages,
-and observing the progress of Python code analysis tools and Python-To-C code generators, we designed and prototyped
+and observing the progress of Python code analysis tools and Python-To-C code generators, we have designed and prototyped
 Dynjit, a general-purpose JIT compiler for Python programming language. Dynjit is also CPython-compatible, hence
-the compatibility for CPython C extensions are kept. Dynjit is lightweight and extensible, as a consequence,
-it's feasible to introduce Dynjit of the early stage into existing codebase, and gradually producing better performance as the features being extended.
-Several benchmarks are performed. It was observed that the performance usually increases to 1.5 times to 10 times, depending on the scenarios.
-Dynjit can make many kinds of common abstractions zero-cost.
+the compatibility to CPython C extensions are kept.
+Dynjit is lightweight and extensible, which allows introducing Dynjit of the early stage into those existing codebases,
+and gradually producing better performance as the features being extended.
+Several benchmarks have been performed. It is observed that the performance usually increases to $ > $ 1.5 times, depending on the scenarios.
+Further, Dynjit can make many kinds of common abstractions zero-cost.
 
-% from academic and industrial world 
-
-% such as Pyjion \cite {pyjion:2018}, Pyston \cite {pyston:2017}, PyPy \cite {bolz2009tracing}, Numba \cite {lam2015numba},
-% HOPE \cite {akeret2015hope},
 
 \end{abstract}
 
@@ -86,10 +81,10 @@ Just-In-Time(JIT) compiler, partial evaluation, type specialization
 
 \section{Introduction}
 Recent years, Python has become one of the most popular programming languages.
-As a consequence, many industries or research institutes started writing computation-intensive programs in
+As a consequence, many industries or research institutes have started writing computation-intensive programs in
 Python, for fast prototyping, rich ecosystem and better maintainability. Besides,
-a range of other programming tasks involving heavy computations, including (Web) Backend, Graphic User Interfaces(GUI), and Games, are also proliferating,
-and hence suffering from Python performance issues.
+a range of other programming tasks involving heavy computations, including (Web) Backend, Graphic User Interfaces(GUI),
+and Games, are also proliferating in Python, and hence suffering from Python performance issues.
 
 To address this, the direct and existing approach is writing C extensions for Python.
 There are many famous C extensions, such as Numba and PyTorch. However, writing extensions will cause the "two-language problem" \cite {bezanson2017julia},
@@ -99,37 +94,90 @@ Another approach is using compilers to optimize Python itself.
 Static compilers used by static programming languages can produce higher performance code, but Python's dynamic nature rejects static
 compilation. As a result, we have to apply runtime compilation, a.k.a. Just-In-Time(JIT) compilation.
 
-Attempts to developing a practical Python JIT compiler have been made by many commercial companies, open source communities or individual developers/researches.
+Attempts to developing a practical Python JIT compiler have been made by many commercial companies, open-source communities and individual developers/researchers.
 The major attempts are Pyjion \cite {pyjion:2018}, Pyston \cite {pyston:2017}, PyPy \cite {bolz2009tracing},
 Numba \cite {lam2015numba} and HOPE \cite {akeret2015hope}.
 
-However, all these attempts are not sufficient for the real world use. Numba and HOPE are restricted to numeric computing, and have issues for being mixed with pure Python features.
-Pyjion and Pyston have stopped active development for many years, as it turned out that it's too difficult for them to collect human resources and funds to complish their huge implementations.
-PyPy has survived the longest and become the most successful alternative Python implementation, however, PyPy's issues of supporting existing C extensions prevent it from being widespread, because there are already many widely used C extensions in the de facto Python implementation, CPython. 
+However, all these attempts are not sufficient for real world use. Numba and HOPE are restricted to numeric computing, and have issues for being mixed with pure Python features.
+Pyjion and Pyston have stopped their active developments for many years, as it turned out that it's too difficult for them to collect human resources and funds to complish their huge implementations.
+PyPy has survived the longest and become the most successful alternative Python implementation, however,
+PyPy's issues of supporting existing C extensions prevent it from being widespread,
+because there are already many widely used C extensions in the de facto Python implementation, CPython.
 
-The performance overhead of Python remains a long-term problem, but this situation has essentially changed in the recent years.
+The performance overhead of Python remains a long-term problem, but this situation has essentially changed in recent years.
 
-The new situation comes from 2 parts. Firstly, a few Python frameworks that could be used as components of building a JIT compiler, have become mature.
-For instance, a JIT needs a compiler in runtime, and Cython \cite {behnel2011cython}, the most widely used Python-to-C compiler, can be leveraged to avoid generating C/C++ code, managing C compiler environment,
+The new situation comes from 2 parts. Firstly, a few Python frameworks that could be used as components of building a JIT compiler,
+have become mature. For instance, a JIT needs a compiler at runtime, and Cython \cite {behnel2011cython},
+the most widely used Python-to-C compiler, can be leveraged to avoid directly generating C/C++ code, managing C compiler environment,
 and also simplify the works of properly calling Python C APIs. Secondly, in recent years there are several successful attempts to adding JIT to other dynamically typed programming languages, especially for Julia,
-which is dynamically typed but can even produce code as efficient as C. These successes are inspiring to us. 
+which is dynamically typed but can even produce code as efficient as C. These successes are inspiring to us.
 
-In the new situation, we reviewed the previous Python JIT attempts, and found out 4 key points.
+In the new situation, we review the previous Python JIT attempts, and find out 4 key points.
 \begin{enumerate}
     \item \textit{Approaches that don't require patching CPython are probably preferable}. This becomes generally agreed and explicitly stated by Pyjion and Pyston.
-    \item A general-purpose JIT is expected. Domain-specific JITs such as Numba and HOPE were rarely used,  and helpful to limited kinds of Python performance bottlenecks. 
+    \item A general-purpose JIT is expected. Domain-specific JITs such as Numba and HOPE were rarely used,  and only helpful to limited kinds of Python performance bottlenecks.
     \item A CPython-compatible JIT is expected. PyPy's incompatibility against CPython causes issues for C extensions.
-    \item A JIT implementation that is lightweight but extensible is expected. Many Python JIT projects tried making a large codebase initially,
-    and when they died, even with a large codebase, they still cannot provide some basic uses. 
+    \item A JIT implementation that is lightweight but extensible is expected. Many Python JIT projects tried making a heavy implementation in the very beginning.
 \end{enumerate}
 
-We hereby present Dynjit.
+We learn from the existing attempts, and hereby present Dynjit.
+
+\section{Python JIT Issues}
+
+It has been nearly 30 years for the world to try optimizing Python's performance.
+Due to the dynamic nature of Python, the existing attempts are restricted and
+cannot work out a good trade-off for general-purpose programming in Python.
+
+Firstly, Python programs are overly generic. A Python function accepts arbitrary arguments at runtime,
+and checks the validity later, even though the validity can be statically checked. For instance, \textit{isinstance}
+is heavily used by users in Python to check the types at runtime, and the addition of float objects tries to check
+if the arguments are floats, otherwise a conversion will be attempted.
+
+Various kinds of code specialization are introduced in Dynjit to address this issue.
+
+Secondly, Python is object-oriented, hence attribute accessing is frequent. However, attribute accessing in Python
+involves the operation of the attribute name string, during which hash lookups happen.
+Attribute accessing in Python can be categorized into four modes
 
 \begin{enumerate}
-    \item Type specialization and static dispatch
-    \item Control flow optimization
-    \item Split for union types and boolean values
+    \item accessing fields maintained by dictionary
+    \item accessing \lstinline!"__slots__"! fields
+    \item accessing static/class methods
+    \item accessing methods
 \end{enumerate}
+
+It is observed by our research that the last 3 modes can be greatly optimized in different approaches, when the type information
+is provided.
+
+Besides, there are still a few other language features caused by the dynamic nature of Python.
+These features are much more difficult to optimize.
+
+For instance, Python global variables can be modified outside a module, at any stage of the program. This makes it hard to decide the
+references of a Python global symbol.
+
+Another considerably specific instance is \textit{union type}. \textit{Union type} is classified as a difficult feature to optimize
+among dynamic programming languages. \textit{Union type} denotes the cases that the return type of a function depends on the runtime
+value of arguments or the global states.
+
+The Julia programming language \cite{bezanson2017julia} gives an approach to handle union types.
+With a minor performance loss to split programs involving union types into several specialized codes without union types,
+it has finally succeeded in optimizing a large range of programs suffering from union types.
+
+\lstset{language=Ruby, showlines=true, mathescape=true}
+\begin{lstlisting}[caption=Union Split in Julia]
+x :: Union{Int, String} = ..
+if x isa Int
+    # now x is treated as an integer
+    # in the following programs S1
+    S1
+else
+    # now x is treated as a string
+    # in the following programs S2
+    S2
+end
+\end{lstlisting}
+
+To address the same issue, their ideas have been stolen to strength the capability of Dynjit.
 
 \section{Dynjit Architecture}
 
@@ -141,11 +189,11 @@ The severe reality forced us to figure out an approach to retrieve code semantic
 This turns out to be valid, as a Python user-defined functions holds a code object. This code object contains Python bytecode
 instructions, which decides the behaviors of CPython stack virtual machine while calling the function.
 
-intermediate representation called Core CPY is developed, to make following code analysis easier.
+Th intermediate representation called Core CPY is developed, to make the following code analysis easier.
 There're only 11 instructions in Core CPY, while Python bytecode has more than 119 instructions after Python 3.8. The reason for avoiding large instruction set is,
 the following code analysis needs one pattern matching case for each instruction.
 
-The semantics for Core CPY is similar to Python bytecode, which is operated by a stack virtual machine. 
+The semantics for Core CPY is similar to Python bytecode, which is operated by a stack virtual machine.
 
 \begin{bnf*}
     \bnfprod{instr}{ \bnftd{CONST} \bnfsp \bnftd{$\mathbf{constant}$}}\\
@@ -157,8 +205,14 @@ The semantics for Core CPY is similar to Python bytecode, which is operated by a
     \bnfmore{\bnfor \bnftd{PEEK} \bnfsp \bnftd{$\mathbf{int}$}} \\
     \bnfmore{\bnfor \bnftd{POP}} \\
     \bnfmore{\bnfor \bnftd{RETURN}} \\
-    \bnfmore{\bnfor \bnftd{JUMP\_IF} \bnfsp \bnftd{$\mathbf{bool}$} \bnfsp \bnftd{$\mathbf{bool}$} \bnfsp \bnftd{$\mathbf{int}$}} 
+    \bnfmore{\bnfor \bnftd{JUMP\_IF} \bnfsp \bnftd{$\mathbf{bool}$} \bnfsp \bnftd{$\mathbf{bool}$} \bnfsp \bnftd{$\mathbf{int}$}}
 \end{bnf*}
+
+
+\begin{center}
+Formula 1. Syntax of Core CPY
+\end{center}
+
 
 Part of the semantics of Core CPY are given below. Other instructions are omitted to avoid the introduction of heavy prerequisites.
 
@@ -174,8 +228,12 @@ Part of the semantics of Core CPY are given below. Other instructions are omitte
 \seq{
     a_1, \cdots, a_i, a_{peek}, \cdots = S
 }{
-    S \vdash_{instr} \mathbf{Peek}\; i \Rightarrow a_{peek}, \; \overbrace{\cdots}^{S}
+    S \vdash_{instr} \mathbf{PEEK}\; i \Rightarrow a_{peek}, \; \overbrace{\cdots}^{S}
 }
+
+\begin{center}
+Formula 2. Semantics for the instructions POP and PEEK
+\end{center}
 
 Core CPY is the input of the partial evaluation.
 
@@ -185,27 +243,27 @@ Partial evaluation is the center of our research.
 During partial evaluation, variables or literals are expressed in the form of a pair \textbf{(repr, shape)}, and this pair is called abstract value.
 An abstract value actually corresponds to a real object at runtime.
 
-A \textbf{repr} can be static or dynamic. When it's static, it holds the real Python runtime objects, and use of the static \text{repr} may
-result in constant propagation; if it's dynamic, it refers to a named or temporary variable. 
+A \textbf{repr} can be static or dynamic. When it's static, it holds a real Python runtime object, and use of the static \text{repr} may
+contribute to constant propagation; if it's dynamic, it refers to a named or temporary variable.
 
 \lstset{language=Caml, showlines=true, mathescape=true}
-\begin{lstlisting}
+\begin{lstlisting}[caption=Dynjit repr]
 type repr =
 | S of python_object
 | D of var_slot
 \end{lstlisting}
 
-A \textbf{shape} corresponds to a unique Python type, and describes the common properties of the abstract value,
-such as static methods and instance methods of the corresponding python object.
+A \textbf{shape} usually corresponds to a unique Python type, and describes the common properties of the abstract value,
+such as static methods and instance methods of the corresponding Python object.
 
 \lstset{language=Caml, showlines=true, mathescape=true}
-\begin{lstlisting}
+\begin{lstlisting}[caption=Dynjit Shapes]
 type shape =
 | TopS
 | TupleS   of shape list
 | UnionS   of shape list
-| ClosureS of shape * python_function_object
-| NominalS of typename * static_methods_dict * ... 
+| ClosureS of shape * python_func_object
+| NominalS of typename * method_dict * ...
 | ...
 \end{lstlisting}
 
@@ -233,23 +291,22 @@ in each configuration are successfully inferred. This means we've successfully t
 \subsection{Type Specialization}
 
 Notice that nested partial evaluations can be performed for inner function calls inside the current partial evaluation.
-This helps us infer arguments types, or accurately, argument \textbf{shape}s of an inner function call.
+This helps us infer argument types, or accurately, argument \textbf{shape}s of an inner function call.
 By knowing the argument \textbf{shape}s, specialized methods can be chosen, this is our adaption to Type Specialization.
 
 Specifically, if the inner called function is a builtin Python function, special rules can be written for them to generate
 method specializations. For instance, if we know the left and right operands of
  \textbf{+} are both \textbf{integer}(represented in form of \textbf{NomS integer ...}),
-then we can replace the generic operator \textbf{+} with \textbf{int\_int\_add}, if \textbf{int\_add\_add} has been implemented.
+then we can replace the generic operator \textbf{+} with \textbf{int\_int\_add}, if \textbf{int\_int\_add} has been provided.
 
 \subsection{$\mathbf{Dynjit}^{tree+goto/label}$ IR and $\mathbf{Dynjit}^{flatten}$}
 
 \lstset{language=Caml, showlines=true, mathescape=true}
-\begin{lstlisting}
+\begin{lstlisting}[caption=Dynjit IRs]
 
 type expr =
-| A of abstract_value 
-| E of expr * expr list
-
+| Val of abstract_value
+| Call of expr * expr list
 
 type tree = (* $\mathbf{Dynjit}^{tree+goto/label}$ *)
 | Assign of var_slot option * expr
@@ -262,7 +319,6 @@ type tree = (* $\mathbf{Dynjit}^{tree+goto/label}$ *)
                  * tree list
                  * tree list
 
-
 type flat = (* $\mathbf{Dynjit}^{flatten}$ *)
 | Assign of var_slot option * expr
 | Goto   of label
@@ -270,7 +326,6 @@ type flat = (* $\mathbf{Dynjit}^{flatten}$ *)
 | Return of expr
 | If     of expr * label
 | TyChk  of expr * shape * label
-
 \end{lstlisting}
 
 $\mathbf{Dynjit}^{tree+goto/label}$ is the result of partial evaluation,
@@ -287,28 +342,19 @@ To optimize code in this case, we learn from the Julia programming language.
 
 The idea can be demonstrated with the following code.
 
-\newpage
-
-\begin{center}
-Original Python Code
-\end{center}
-
 \lstset{language=Python, showlines=true, mathescape=true}
-\begin{lstlisting}
+\begin{lstlisting}[caption=Union Split: Original Python Code]
 
 x = function_returns_int_or_float(...)
 y = x + x
 ...
-
 \end{lstlisting}
 
-\begin{center}
-Union-split Python Code
-\end{center}
+\newpage
 
 
 \lstset{language=Python, showlines=true, mathescape=true}
-\begin{lstlisting}
+\begin{lstlisting}[caption=Union Split: Union-split Code]
 
 x = function_returns_int_or_float(...)
 if isinstance(x, int):
@@ -317,7 +363,6 @@ if isinstance(x, int):
 elif isinstance(x, float):
     y = float_float_add(x, x)
     ...
-
 \end{lstlisting}
 
 
@@ -333,16 +378,12 @@ and the other's is a static \textbf{False}.
 
 Boolean value split is for optimizing the control flows.
 \textbf{JUMP\_IF} instruction in Core CPY can be optimized
-the condition of jump can be decided statically.
+when the condition of jump can be decided statically.
 
 The idea can be demonstrated with the following code.
 
-\begin{center}
-Original Python Code
-\end{center}
-
 \lstset{language=Python, showlines=true, mathescape=true}
-\begin{lstlisting}
+\begin{lstlisting}[caption=Boolean Split: Original Python Code]
 
 x = f() # x is inferred to be a boolean
 y = g() # y is inferred to be a boolean
@@ -353,16 +394,11 @@ elif x or y:
     s2
 else:
     s3
-
 \end{lstlisting}
-
-\begin{center}
-Boolean-split Python Code
-\end{center}
 
 
 \lstset{language=Python, showlines=true, mathescape=true}
-\begin{lstlisting}
+\begin{lstlisting}[caption=Boolean Split: Boolean-split Python Code]
 
 x = f() # x is inferred to be a boolean
 if x is True:
@@ -377,21 +413,47 @@ else:
         s2
     else:
         s3
-
 \end{lstlisting}
 
 
-\section*{Acknowledgment}
+\section*{Progress}
 
+Dynjit has been now prototyped and shown a large factor of performance improvement over several kinds of Python programs, such as attribute accessing,
+loops, union types, reading global variables, closure constructions and dynamic dispatch. The program that can be optimized is restricted,
+for instance, attribute accessing can have a \textbf{1.5x} speed up when the attribute is a \lstinline!"__slots__"! field,
+and the speed up for type specialized programs depends on the complexity of programs, and can usually produce a factor
+of $>$ \textbf{3.5x}.
+
+However, the speed up is now not that dramatic due to the following reasons.
+
+\begin{enumerate}
+    \item Dynjit now does no object unboxing
+    \item It's hard to measure the effect of several optimizations when they collaborate together.
+\end{enumerate}
+
+The code of Dynjit prototype is available in the same-name GitHub repository for reproduction purpose.
+
+
+\section*{Future Outlook}
+
+Paper works are now the focus of our research.
+
+Dynjit widely adopts ideas from many existing attempts and some other programming languages, and has made progress.
+It's crucial for us to present paper works and accept peer reviews, which contributes to the solution to Python performance issues,
+and helps to the stabilization of the research production.
+
+On the opposite direction, to address some existing restrictions to current Dynjit, radical evolutions might be applied.
+For instance, it's hard for us to optimize recursive functions, and the runtime generated code can be overly large.
+
+Dynjit now can optimize a limited set of Python language features, we are to work on the optimizers
+for full-featured CPython, in order to be practical, and general-purpose.
+
+Besides of the aspect of generality, it is also observed that Dynjit is much slower than Numba in numeric computing tasks.
+So far this is thought to be a consequence of lacking of object unboxing. Object unboxing and
+other optimizations are now being considered to speed up domain-specific tasks.
 
 \medskip
 \bibliographystyle{unsrt}
 \bibliography{semi}
-
-
-
-\vspace{12pt}
-\color{red}
-IEEE conference templates contain guidance text for composing and formatting conference papers. Please ensure that all template text is removed from your conference paper prior to submission to the conference. Failure to remove the template text from your paper may result in your paper not being published.
 
 \end{document}
