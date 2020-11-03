@@ -62,7 +62,7 @@ def ct(ac):
 
 def define_prim(o):
     t = types.PrimT(o)
-    v = dynjit.AbstractValue(dynjit.S(o), t)
+    v = dynjit.Abs(dynjit.S(o), t)
     prim_types[o] = t
     return v
 
@@ -100,7 +100,7 @@ v_clogetfunc = define_prim(i_clogetfunc)
 v_clogetcell = define_prim(i_clogetcell)
 
 # value:
-v_none = dynjit.AbstractValue(dynjit.S(None), types.none_t)
+v_none = dynjit.Abs(dynjit.S(None), types.none_t)
 
 # codegen not implemented yet:
 v_asint = define_prim(i_asint)
@@ -126,14 +126,14 @@ class ConstantSymbol:
 
 
 def mk_v_str(s: str):
-    return dynjit.AbstractValue(dynjit.S(s), types.str_t)
+    return dynjit.Abs(dynjit.S(s), types.str_t)
 
 
 def mk_v_const_sym(s: str):
-    return dynjit.AbstractValue(
+    return dynjit.Abs(
         dynjit.S(ConstantSymbol(s)), types.ConstT()
     )
 
 
 def mk_v_int(s: int):
-    return dynjit.AbstractValue(dynjit.S(s), types.int_t)
+    return dynjit.Abs(dynjit.S(s), types.int_t)

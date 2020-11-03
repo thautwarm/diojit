@@ -9,8 +9,8 @@ from _json import encode_basestring
 @register_dispatch(intrinsics.i_getattr, 2)
 def spec1(self: PE, args, s, p):
     infer = self.infer
-    l: dynjit.AbstractValue = args[0]
-    r: dynjit.AbstractValue = args[1]
+    l: dynjit.Abs = args[0]
+    r: dynjit.Abs = args[1]
     n = stack.size(s)
     if r.type is types.str_t and isinstance(r.repr, dynjit.S):
         r_val = cast(str, r.repr.c)
@@ -23,7 +23,7 @@ def spec1(self: PE, args, s, p):
                 offset = prims.mk_v_const_sym(
                     repr(get_slot_member_offset(getattr(pytype, r_val)))
                 )
-                abs_val = dynjit.AbstractValue(
+                abs_val = dynjit.Abs(
                     dynjit.D(n), types.TopT()
                 )
                 yield dynjit.Assign(
@@ -40,7 +40,7 @@ def spec1(self: PE, args, s, p):
         else:
             if r_val in l_type.members:
                 ret_t = l_type.members[r_val]
-                abs_val = dynjit.AbstractValue(dynjit.D(n), ret_t)
+                abs_val = dynjit.Abs(dynjit.D(n), ret_t)
                 pytype = l_type.to_py_type()
                 if (
                     getattr(pytype, "__slots__", None)
@@ -77,7 +77,7 @@ def spec1(self: PE, args, s, p):
             if r_val in l_type.methods:
                 unbound_method = l_type.methods[r_val]
                 meth_t = types.MethT(l.type, unbound_method.type)
-                abs_val = dynjit.AbstractValue(dynjit.D(n), meth_t)
+                abs_val = dynjit.Abs(dynjit.D(n), meth_t)
                 yield dynjit.Assign(
                     abs_val,
                     dynjit.Call(
@@ -95,7 +95,7 @@ def spec1(self: PE, args, s, p):
                 yield from infer(s, p + 1)
                 return
 
-    abs_val = dynjit.AbstractValue(dynjit.D(n), types.TopT())
+    abs_val = dynjit.Abs(dynjit.D(n), types.TopT())
     yield dynjit.Assign(
         abs_val, dynjit.Call(prims.v_getattr, [l, r], type=abs_val.type)
     )

@@ -114,7 +114,7 @@ class S:
 def mk_member_(d, f: types.NomT, attr: str):
     o = getattr(f.name, attr)
     t = prims.ct(o)
-    d[attr] = dynjit.AbstractValue(dynjit.S(o), t)
+    d[attr] = dynjit.Abs(dynjit.S(o), t)
 
 
 @c.assume(S)

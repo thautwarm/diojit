@@ -8,8 +8,8 @@ from typing import cast
 @register_dispatch(i_isinstance, 2)
 def spec(self: PE, args, s, p):
     infer = self.infer
-    l: dynjit.AbstractValue = args[0]
-    r: dynjit.AbstractValue = args[1]
+    l: dynjit.Abs = args[0]
+    r: dynjit.Abs = args[1]
     if isinstance(l.type, types.TopT):
         return NO_SPECIALIZATION
     elif r.type is not types.type_t:
@@ -19,6 +19,6 @@ def spec(self: PE, args, s, p):
         return NO_SPECIALIZATION
     val = issubclass(l.type.to_py_type(), cast(type, r.repr.c))
     repr = dynjit.S(val)
-    abs_val = dynjit.AbstractValue(repr, types.bool_t)
+    abs_val = dynjit.Abs(repr, types.bool_t)
     s = stack.cons(abs_val, s)
     yield from infer(s, p + 1)

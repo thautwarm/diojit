@@ -8,12 +8,12 @@ import operator
 @register_dispatch(intrinsics.i_asint, 1)
 def spec(self: PE, args, s, p):
     infer = self.infer
-    a: dynjit.AbstractValue = args[0]
+    a: dynjit.Abs = args[0]
     n = stack.size(s)
     if isinstance(a.repr, dynjit.S):
         repr = dynjit.S(int(cast(int, a.repr.c)))
         typ = types.int_t
-        abs_val = dynjit.AbstractValue(repr, typ)
+        abs_val = dynjit.Abs(repr, typ)
         s = stack.cons(abs_val, s)
         yield from infer(s, p + 1)
     elif a.type is types.int_t:
@@ -21,13 +21,13 @@ def spec(self: PE, args, s, p):
         yield from infer(s, p + 1)
     elif a.type is types.float_t:
         repr = dynjit.D(n)
-        abs_val = dynjit.AbstractValue(repr, types.float_t)
+        abs_val = dynjit.Abs(repr, types.float_t)
         yield dynjit.Assign(abs_val, dynjit.Call(prims.v_strunc, [a]))
         s = stack.cons(a, s)
         yield from infer(s, p + 1)
     elif a.type is types.float_t:
         repr = dynjit.D(n)
-        abs_val = dynjit.AbstractValue(repr, types.float_t)
+        abs_val = dynjit.Abs(repr, types.float_t)
         yield dynjit.Assign(abs_val, dynjit.Call(prims.v_parseint, [a]))
         s = stack.cons(a, s)
         yield from infer(s, p + 1)

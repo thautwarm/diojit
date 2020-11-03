@@ -8,7 +8,7 @@ if TYPE_CHECKING:
 
 def emit_expr(self: Emit, arg: dynjit.Expr):
     if isinstance(arg, dynjit.Call):
-        if isinstance(arg.f, dynjit.AbstractValue):
+        if isinstance(arg.f, dynjit.Abs):
             return map_intrinsic_call(self, arg.f, arg.args)
         no_special_call(self, arg.f, arg.args)
     else:
@@ -40,7 +40,7 @@ def call_args_with_cython_func(self: Emit, func: str, args):
 
 
 def map_intrinsic_call(
-    self: Emit, f: dynjit.AbstractValue, args: Sequence[dynjit.Expr]
+    self: Emit, f: dynjit.Abs, args: Sequence[dynjit.Expr]
 ):
     if f is v_isinstance:
         # TODO

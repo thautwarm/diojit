@@ -18,8 +18,8 @@ import itertools
 
 @dataclass
 class Specialised:
-    return_type: types.T
-    method: dynjit.AbstractValue
+    return_type: types.TAbs
+    method: dynjit.Abs
 
 
 def calc_initial_stack_size(codeobj):
@@ -28,8 +28,8 @@ def calc_initial_stack_size(codeobj):
 
 @dataclass
 class Assumptions:
-    static_members: Dict[str, types.T]
-    members: Dict[str, types.T]
+    static_members: Dict[str, types.TAbs]
+    members: Dict[str, types.TAbs]
 
 
 class DEBUG(Enum):
@@ -74,7 +74,7 @@ class Compiler:
         return o
 
     def optimize_by_shapes(
-        self, func: pytypes.FunctionType, *types: types.T
+        self, func: pytypes.FunctionType, *types: types.TAbs
     ) -> pytypes.FunctionType:
         func = self.specialise(func, *types)
         # noinspection PyTypeChecker
@@ -118,7 +118,7 @@ class Compiler:
         ) - len(arg_types)
 
         (S) = [
-            dynjit.AbstractValue(dynjit.D(i + 1), a)
+            dynjit.Abs(dynjit.D(i + 1), a)
             for i, a in enumerate(
                 itertools.chain(
                     arg_types,
@@ -132,7 +132,7 @@ class Compiler:
         (S) = S[::-1]
 
         # so for no closure, so make it None
-        S.append(dynjit.AbstractValue(dynjit.S(None), types.none_t))
+        S.append(dynjit.Abs(dynjit.S(None), types.none_t))
         (S) = stack.construct(S)
         glob: dict = func.__globals__
         import builtins
@@ -140,7 +140,7 @@ class Compiler:
 
         _glob = ChainMap(builtins.__dict__, glob)
         glob_type = prims.ct(_glob)
-        glob_abs_val = dynjit.AbstractValue(dynjit.S(_glob), glob_type)
+        glob_abs_val = dynjit.Abs(dynjit.S(_glob), glob_type)
         pe = PE(glob_abs_val, self, I)
         dynjit_code = list(pe.infer(S, 0))
         return_types = pe.return_types
@@ -188,7 +188,7 @@ class Compiler:
 
         m = Specialised(
             return_type=ret_t,
-            method=dynjit.AbstractValue(
+            method=dynjit.Abs(
                 dynjit.S(jit_func), types.JitFPtrT(len(arg_types))
             ),
         )
@@ -204,14 +204,14 @@ def gensym(n: List[int]):
 
 @dataclass
 class PE:
-    glob_val: dynjit.AbstractValue
+    glob_val: dynjit.Abs
     compiler: Compiler
     corecpy_suite: Sequence[CoreCPY.Instr]
     block_cache: dict = field(default_factory=dict)
     found_cache: dict = field(default_factory=dict)
     counter_lbl: List[int] = field(default_factory=lambda: [0])
     counter_sym: List[int] = field(default_factory=lambda: [0])
-    return_types: List[types.T] = field(default_factory=list)
+    return_types: List[types.TAbs] = field(default_factory=list)
     func_aries: Set[int] = field(default_factory=set)
 
     def infer(self, s, p):
@@ -231,15 +231,15 @@ class PE:
 
         pair = stack.decons_opt(s)
         if pair:
-            abs_val: dynjit.AbstractValue = s[0]
+            abs_val: dynjit.Abs = s[0]
             s_ = s[1]
             t_tos = abs_val.type
             if t_tos is types.bool_t and isinstance(
                 abs_val.repr, dynjit.D
             ):
                 s = s_
-                h1 = dynjit.AbstractValue(dynjit.S(True), types.bool_t)
-                h2 = dynjit.AbstractValue(dynjit.S(False), types.bool_t)
+                h1 = dynjit.Abs(dynjit.S(True), types.bool_t)
+                h2 = dynjit.Abs(dynjit.S(False), types.bool_t)
                 s1 = stack.cons(h1, s)
                 s2 = stack.cons(h2, s)
                 arm1 = list(self.infer(s1, p))
@@ -252,7 +252,7 @@ class PE:
                 *init, end_t = t_tos.alts
                 untyped_abs_val = abs_val
 
-                abs_val_spec = dynjit.AbstractValue(abs_val.repr, end_t)
+                abs_val_spec = dynjit.Abs(abs_val.repr, end_t)
                 last = list(
                     itertools.chain(
                         (dynjit.Assign(abs_val_spec, untyped_abs_val),),
@@ -260,7 +260,7 @@ class PE:
                     )
                 )
                 for end_t in init:
-                    abs_val_spec = dynjit.AbstractValue(
+                    abs_val_spec = dynjit.Abs(
                         abs_val.repr, end_t
                     )
                     s_spec = stack.cons(abs_val_spec, s)
@@ -295,12 +295,12 @@ class PE:
             return
         if isinstance(instr, CoreCPY.Load):
             assert isinstance(instr.sym, int)
-            a: dynjit.AbstractValue = stack.index_rev(s, instr.sym)
+            a: dynjit.Abs = stack.index_rev(s, instr.sym)
             if isinstance(a.repr, dynjit.S):
                 s_new = stack.cons(a, s)
             else:
                 target = stack.size(s)
-                a_dyn = dynjit.AbstractValue(dynjit.D(target), a.type)
+                a_dyn = dynjit.Abs(dynjit.D(target), a.type)
                 yield dynjit.Assign(a_dyn, a)
                 s_new = stack.cons(a_dyn, s)
             yield from self.infer(s_new, p + 1)
@@ -308,7 +308,7 @@ class PE:
 
         if isinstance(instr, CoreCPY.Constant):
             ct = prims.ct(instr.c)
-            a = dynjit.AbstractValue(dynjit.S(instr.c), ct)
+            a = dynjit.Abs(dynjit.S(instr.c), ct)
             s_new = stack.cons(a, s)
             yield from self.infer(s_new, p + 1)
             return
@@ -324,7 +324,7 @@ class PE:
             if isinstance(a, dynjit.S):
                 s_new = stack.store_rev(s, instr.sym, a)
             else:
-                a_dyn = dynjit.AbstractValue(
+                a_dyn = dynjit.Abs(
                     dynjit.D(instr.sym), a.type
                 )
                 s_new = stack.store_rev(s, instr.sym, a_dyn)
@@ -333,13 +333,13 @@ class PE:
             return
 
         if isinstance(instr, CoreCPY.Call):
-            v_args: List[dynjit.AbstractValue] = []
+            v_args: List[dynjit.Abs] = []
             for _ in range(instr.narg):
                 v, s = stack.pop(s)
                 v_args.append(v)
             v_args.reverse()
             f, s = stack.pop(s)
-            f: dynjit.AbstractValue = f
+            f: dynjit.Abs = f
 
             return (yield from self.call_desugar(f, v_args, s, p))
 
@@ -348,7 +348,7 @@ class PE:
             return
 
         if isinstance(instr, CoreCPY.JumpIf):
-            expect = dynjit.AbstractValue(
+            expect = dynjit.Abs(
                 dynjit.S(instr.expect), types.bool_t
             )
             a, s_new = s
@@ -391,8 +391,8 @@ class PE:
 
     def call_desugar(self, f, v_args, s, p):
         def iterate_desugar(
-            f: Union[dynjit.AbstractValue, dynjit.Call],
-            v_args: List[Union[dynjit.Call, dynjit.AbstractValue]],
+            f: Union[dynjit.Abs, dynjit.Call],
+            v_args: List[Union[dynjit.Call, dynjit.Abs]],
         ):
             t_f = f.type
             if isinstance(t_f, types.PrimT):
@@ -408,7 +408,7 @@ class PE:
                 # TODO
                 ret_t = t_f.type
                 n = stack.size(s)
-                a_dyn = dynjit.AbstractValue(dynjit.D(n), ret_t)
+                a_dyn = dynjit.Abs(dynjit.D(n), ret_t)
                 s_new = stack.cons(a_dyn, s)
                 yield dynjit.Assign(
                     a_dyn, dynjit.Call(prims.v_py_call, [f, *v_args])
@@ -462,7 +462,7 @@ class PE:
 
                     spec_method = specialised.method
                     expr = dynjit.Call(spec_method, v_args)
-                    a_dyn = dynjit.AbstractValue(
+                    a_dyn = dynjit.Abs(
                         dynjit.D(n), specialised.return_type
                     )
                     s_new = stack.cons(a_dyn, s)
@@ -471,7 +471,7 @@ class PE:
                     return
 
             ret_t = types.TopT()
-            a_dyn = dynjit.AbstractValue(dynjit.D(n), ret_t)
+            a_dyn = dynjit.Abs(dynjit.D(n), ret_t)
             s_new = stack.cons(a_dyn, s)
             yield dynjit.Assign(
                 a_dyn, dynjit.Call(prims.v_py_call, [f, *v_args])

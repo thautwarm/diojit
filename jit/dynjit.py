@@ -31,8 +31,6 @@ class S:
         ):
             return self.c.__name__
         return repr(self.c)
-
-
 @dataclass(frozen=True)
 class D:
     n: Symbol
@@ -41,13 +39,14 @@ class D:
         return f"D{self.n}"
 
 
-Repr = Union[S, D]
+# value abstract
+VAbs = Union[S, D]
 
 
 @dataclass(frozen=True, eq=True, order=True)
-class AbstractValue:
-    repr: Repr
-    type: types.T
+class Abs:
+    repr: VAbs
+    type: types.TAbs
 
     def __post_init__(self):
         assert isinstance(self.repr, (S, D))
@@ -90,20 +89,20 @@ class AbstractValue:
     def __call__(self, *args: Expr):
         return Call(self, args)
 
-    def with_type(self, ty: types.T):
-        return AbstractValue(self.repr, ty)
+    def with_type(self, ty: types.TAbs):
+        return Abs(self.repr, ty)
 
 
 @dataclass(frozen=True)
 class Call:
     f: Expr
     args: Sequence[Expr]
-    type: types.T = field(default=None)
+    type: types.TAbs = field(default=None)
 
     def __post_init__(self):
-        assert isinstance(self.f, (Call, AbstractValue))
+        assert isinstance(self.f, (Call, Abs))
         assert all(
-            isinstance(e, (Call, AbstractValue)) for e in self.args
+                isinstance(e, (Call, Abs)) for e in self.args
         ), self.args
 
     def __call__(self, *args: Expr):
@@ -114,16 +113,16 @@ class Call:
             repr(self.f), ", ".join(map(repr, self.args))
         )
 
-    def with_type(self, ty: types.T):
+    def with_type(self, ty: types.TAbs):
         return Call(self.f, self.args, ty)
 
 
-Expr = Union[Call, AbstractValue]
+Expr = Union[Call, Abs]
 
 
 @dataclass(frozen=True)
 class Assign:
-    target: Optional[AbstractValue]
+    target: Optional[Abs]
     expr: Expr
 
 
@@ -145,7 +144,7 @@ class Return:
 @dataclass(frozen=True)
 class TypeCheck:
     expr: Expr
-    type: types.T
+    type: types.TAbs
     arm1: Sequence[Stmt]
     arm2: Sequence[Stmt]
 

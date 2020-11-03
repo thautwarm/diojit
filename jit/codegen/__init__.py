@@ -21,7 +21,7 @@ PIECE = "  "
 
 
 class Emit:
-    def __init__(self, args: Sequence[dynjit.AbstractValue]):
+    def __init__(self, args: Sequence[dynjit.Abs]):
         self.reg_names = MissingDict(lambda x: f"d{x}")
         self.func_defs = []
         self.func_ptrs = {}
@@ -85,7 +85,7 @@ class Emit:
     def get_label_id(self, lbl: Symbol) -> int:
         return self.lbls[lbl]
 
-    def get_reg_name(self, reg: dynjit.AbstractValue):
+    def get_reg_name(self, reg: dynjit.Abs):
         if isinstance(reg.type, types.ConstT):
             return f"({reg.repr.c!r})"
         elif isinstance(reg.type, types.JitFPtrT):
@@ -234,7 +234,7 @@ class Emit:
     def visit_TypeCheck(self, x: TypeCheck):
         self.write_indent()
 
-        assert isinstance(x.expr, dynjit.AbstractValue)
+        assert isinstance(x.expr, dynjit.Abs)
 
         self.write("if type(")
         self.visit_expr(x.expr)

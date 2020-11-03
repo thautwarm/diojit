@@ -18,7 +18,7 @@ class JitClosure(ctypes.Structure):
 
 @dataclass(eq=True, frozen=True)
 class RefT:
-    x: T
+    x: TAbs
 
     @staticmethod
     def to_py_type():
@@ -82,8 +82,8 @@ class JitFPtrT:
 
 @dataclass(frozen=True, eq=True)
 class MethT:
-    self: T
-    func: T
+    self: TAbs
+    func: TAbs
 
     @staticmethod
     def to_py_type():
@@ -96,8 +96,8 @@ class MethT:
 
 @dataclass(frozen=True, eq=True)
 class ClosureT:
-    cell: T
-    func: T
+    cell: TAbs
+    func: TAbs
 
     @staticmethod
     def to_py_type():
@@ -193,7 +193,7 @@ class TypeT:
 
 @dataclass(eq=True, frozen=True, unsafe_hash=True)
 class UnionT:
-    alts: FrozenSet[T]
+    alts: FrozenSet[TAbs]
 
     @staticmethod
     def to_py_type():
@@ -266,7 +266,7 @@ noms = {
     list: list_t,
 }
 
-T = Union[
+TAbs = Union[
     RefT,
     TupleT,
     RecordT,

@@ -7,8 +7,8 @@ from typing import cast
 @register_dispatch(intrinsics.i_getitem, 2)
 def spec(self: PE, args, s, p):
     infer = self.infer
-    l: dynjit.AbstractValue = args[0]
-    r: dynjit.AbstractValue = args[1]
+    l: dynjit.Abs = args[0]
+    r: dynjit.Abs = args[1]
 
     if isinstance(l.type, types.RecordT) and r.type is types.str_t:
         if isinstance(l.repr, dynjit.S) and isinstance(
@@ -23,7 +23,7 @@ def spec(self: PE, args, s, p):
                 raise KeyError(key)
             repr = dynjit.S(dictionary[key])
             typ = fix_keys[key]
-            abs_val = dynjit.AbstractValue(repr, typ)
+            abs_val = dynjit.Abs(repr, typ)
             s = stack.cons(abs_val, s)
             yield from infer(s, p + 1)
             return
@@ -31,7 +31,7 @@ def spec(self: PE, args, s, p):
         # tuple[int]
         n = stack.size(s)
         repr = dynjit.D(n)
-        abs_val = dynjit.AbstractValue(repr, types.TopT())
+        abs_val = dynjit.Abs(repr, types.TopT())
         yield dynjit.Assign(
             abs_val, dynjit.Call(prims.v_tuple_getitem_int, [l, r])
         )
@@ -46,13 +46,13 @@ def spec(self: PE, args, s, p):
                 # const (t1, t2, t3)[const int]
                 repr = dynjit.S(cast(tuple, l.repr.c)[i])
                 typ = l.type.xs[i]
-                abs_val = dynjit.AbstractValue(repr, typ)
+                abs_val = dynjit.Abs(repr, typ)
             else:
                 # (t1, t2, t3)[const int]
                 typ = l.type.xs[i]
                 n = stack.size(s)
                 repr = dynjit.D(n)
-                abs_val = dynjit.AbstractValue(repr, typ)
+                abs_val = dynjit.Abs(repr, typ)
                 yield dynjit.Assign(
                     abs_val,
                     dynjit.Call(
@@ -71,7 +71,7 @@ def spec(self: PE, args, s, p):
             # xs[i] : t1 | t2 | t3
             n = stack.size(s)
             repr = dynjit.D(n)
-            abs_val = dynjit.AbstractValue(repr, types.TopT())
+            abs_val = dynjit.Abs(repr, types.TopT())
             yield dynjit.Assign(
                 abs_val, dynjit.Call(prims.v_tuple_getitem_int, [l, r])
             )
@@ -81,7 +81,7 @@ def spec(self: PE, args, s, p):
     # Any[Any]
     n = stack.size(s)
     repr = dynjit.D(n)
-    abs_val = dynjit.AbstractValue(repr, types.TopT())
+    abs_val = dynjit.Abs(repr, types.TopT())
     yield dynjit.Assign(abs_val, dynjit.Call(prims.v_getitem, [l, r]))
     s = stack.cons(abs_val, s)
     yield from infer(s, p + 1)

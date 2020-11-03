@@ -10,7 +10,7 @@ del If
 @dataclass(frozen=True)
 class TypeCheck:
     expr: Expr
-    type: types.T
+    type: types.TAbs
     jmp: Symbol
 
 
