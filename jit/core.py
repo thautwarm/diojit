@@ -3,17 +3,30 @@ from dataclasses import dataclass
 from contextlib import contextmanager
 from enum import Enum
 import typing as _t
+import types as _types
 import dataclasses
 import sys
 import pyrsistent
 
 # AbsVal
+UNDEF = object()
+literal_types = _t.Union[int, str, float, None, bool, complex]
+literal_runtime_types = (int, str, float, type(None), bool, complex)
 
 
 class Out_IExpr:
     def __call__(self, *args):
         self: Out_Expr
         return Out_Call(self, list(args))
+
+
+@dataclass(frozen=True)
+class Constant(Out_IExpr):
+    o: object
+    t: AbsVal
+
+    def __repr__(self):
+        return f"const[{self.o!r}]^[{self.t}]"
 
 
 @dataclass(frozen=True)
@@ -29,7 +42,7 @@ class DynAbsVal(Out_IExpr):
         return f"D[{self.i}]^{self.t}"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class StAbsVal(Out_IExpr):
     """
     static abstract value
@@ -37,7 +50,7 @@ class StAbsVal(Out_IExpr):
 
     o: object
     ts: _t.Tuple[
-        _t.Union[StAbsVal, PrimAbsVal, int, bool, str], ...
+        _t.Union[StAbsVal, PrimAbsVal, literal_types], ...
     ] = dataclasses.field(default_factory=tuple)
 
     def shape(self):
@@ -86,39 +99,52 @@ class CAPIs:
     Not = CAPI("not")
 
 
-STATIC_VALUE_MAPS: _t.Dict[object, StAbsVal] = {}
+STATIC_VALUE_MAPS: _t.Dict[
+    object, _t.Union[StAbsVal, PrimAbsVal, CAPI, Constant]
+] = {}
 
 
-def to_runtime(x: AbsVal, map_info: _t.Dict[int, object]):
+def to_runtime(x: AbsVal):
     if isinstance(x, DynAbsVal):
-        return map_info[x.i]
-    if isinstance(x, (int, str, float, bool)):
+        raise TypeError
+    if isinstance(x, Constant):
+        return x.o
+    if isinstance(x, literal_runtime_types):
         return x
     if isinstance(x, StAbsVal):
         return ShapeSystem[x.o].to_py(x.ts)
     if isinstance(x, PrimAbsVal):
-        raise TypeError
+        return primitive_abs_typemap[x]
+    raise TypeError
 
 
-def from_runtime(x: object, map_info: _t.Dict[int, object] = None):
-    if map_info is None:
-        map_info = {}
+@dataclass
+class RuntimeWrap:
+    def __init__(self, o):
+        self.o = o
 
-    if isinstance(x, (int, str, float, bool)):
+    def __call__(self, *args, **kwargs):
+        raise TypeError(f"calling jit only function {self.o}!")
+
+
+def from_runtime(x: object):
+
+    if isinstance(x, RuntimeWrap):
+        return x.o
+
+    if isinstance(x, literal_runtime_types):
         return x
-    if x is None:
-        return A_none
+    if isinstance(x, _types.ModuleType):
+        return StAbsVal(Name_MOD, (x.__name__,))
 
     if isinstance(x, tuple):
-        ts = tuple(from_runtime(type(v), map_info) for v in x)
-        i = len(map_info)
-        a = DynAbsVal(i, StAbsVal(Name_TUPLE, ts))
-        map_info[i] = x
-        return a
+        a_ts = tuple(map(judge_class, map(from_runtime, x)))
+        a_t = StAbsVal(Name_TUPLE, a_ts)
+        return Constant(x, a_t)
 
     as_abs = getattr(x, "__as_abstract__", None)
     if as_abs:
-        return as_abs(map_info)
+        return as_abs()
 
     try:
         hash(x)
@@ -128,15 +154,12 @@ def from_runtime(x: object, map_info: _t.Dict[int, object] = None):
     except TypeError:
         pass
     t = type(x)
-    a_t = from_runtime(t, map_info)
-    i = len(map_info)
-    a = DynAbsVal(i, a_t)
-    map_info[i] = x
-    return a
+    a_t = from_runtime(t)
+    return Constant(x, a_t)
 
 
 AbsVal = _t.Union[
-    DynAbsVal, StAbsVal, PrimAbsVal, CAPI, bool, int, str, float
+    DynAbsVal, StAbsVal, PrimAbsVal, CAPI, Constant, literal_types
 ]
 
 # Shape System
@@ -149,11 +172,14 @@ class Shape:
     bases: _t.List[AbsVal]
     fields: _t.Dict[str, AbsVal]
     to_py: _t.Callable[[AbsValSeq], object]
+    instance: _t.Callable[[AbsValSeq], AbsVal] = dataclasses.field(
+        default=lambda _: UNDEF
+    )
 
 
 ShapeSystem: _t.Dict[object, Shape] = {}
 
-NonDyn = _t.Union[StAbsVal, PrimAbsVal, CAPI, bool, int, str, float]
+NonDyn = _t.Union[StAbsVal, PrimAbsVal, CAPI, literal_types]
 AbsValSeq = _t.Tuple[AbsVal, ...]
 
 # CoreDyn
@@ -317,6 +343,7 @@ def show_many(xs: _t.List[Out_Instr], prefix):
 class Out_Def:
     args: _t.Tuple[AbsVal, ...]
     rettypes: _t.Tuple[AbsVal, ...]
+    instance: _t.Union[object, AbsVal]
     instrs: _t.Tuple[Out_Instr, ...]
     name: str  # unique
     start: str
@@ -328,7 +355,10 @@ class Out_Def:
             "|".join(map(repr, self.rettypes)),
             f"def {self.name}(",
             ", ".join(map(repr, self.args)),
-            ") {",
+            ")",
+            f"-> {self.instance} {{"
+            if self.instance is not UNDEF
+            else "{",
         )
         print(f"  START from {self.start}")
         for i in self.instrs:
@@ -347,7 +377,7 @@ PreSpecMaps: _t.Dict[CallRecord, str] = {}
 
 ## cache return types and function address
 SpecMaps: _t.Dict[
-    CallRecord, _t.Tuple[_t.Tuple[AbsVal, ...], AbsVal]
+    CallRecord, _t.Tuple[_t.Tuple[AbsVal, ...], AbsVal, AbsVal]
 ] = {}
 
 
@@ -416,43 +446,50 @@ def judge_lit(local: Local, a: AbsVal):
     return a
 
 
-def judge_coerce(a, t):
+def judge_coerce(a, t: StAbsVal):
     if isinstance(a, DynAbsVal):
         a_t = DynAbsVal(a.i, t)
+        inst = t.shape().instance(t.ts)
+        if inst is not UNDEF:
+            return [], inst
         return [Out_Assign(a_t, a)], a_t
     return [], a
 
 
 def judge_class(a: AbsVal) -> StAbsVal:
+    if isinstance(a, Constant):
+        return a.t
+
     if isinstance(a, DynAbsVal):
         return a.t
+
     if isinstance(a, StAbsVal):
         shape = ShapeSystem[a.o]
         return shape.cls
+
     if isinstance(a, PrimAbsVal):
         return A_top
-    if isinstance(a, bool):
-        return A_bool
-    if isinstance(a, str):
-        return A_str
-    if isinstance(a, int):
-        return A_int
-    if isinstance(a, float):
-        return A_float
+
+    if isinstance(a, literal_runtime_types):
+        return literal_runtime_abs_typemap[type(a)]
+
     if isinstance(a, CAPI):
         return A_top
     raise TypeError(type(a), a)
 
 
-def judge_resolve(t: StAbsVal, method: str):
+def judge_resolve(t: _t.Union[StAbsVal, Constant], method: str):
+    if isinstance(t, Constant):
+        return UNDEF
     shape = ShapeSystem[t.o]
-    m = shape.fields.get(method)
-    if m is not None:
+    m = shape.fields.get(method, UNDEF)
+    if m is not UNDEF:
         return m
     for base in shape.bases:
         m = judge_resolve(base, method)
-        if m is not None:
+        if m is not UNDEF:
             return m
+    return UNDEF
 
 
 def blocks_to_instrs(
@@ -460,7 +497,7 @@ def blocks_to_instrs(
 ):
     instrs = []
     for label, block in sorted(
-        blocks.items(), key=lambda pair: pair[1] != start
+        blocks.items(), key=lambda pair: pair[0] != start
     ):
         instrs.append(Out_Label(label))
         instrs.extend(block)
@@ -501,9 +538,9 @@ class Judge:
     def codegen(self, *args):
         self.code.extend(args)
 
-    def stmt(self, local: Local, xs: _t.Iterator[In_Stmt]):
+    def stmt(self, local: Local, xs: _t.Sequence[In_Stmt], index: int):
         try:
-            hd = next(xs)
+            hd = xs[index]
         except StopIteration:
             raise Exception("non-terminaor terminate")
         if isinstance(hd, In_Move):
@@ -512,7 +549,7 @@ class Judge:
             local = decref(local, a_x)
             local = incref(local, a_y)
             local = local.up_store(local.store.set(hd.target.i, a_y))
-            self.stmt(local, xs)
+            self.stmt(local, xs, index + 1)
         elif isinstance(hd, In_Goto):
             label_gen = self.jump(local, hd.label)
             self.codegen(Out_Goto(label_gen))
@@ -527,14 +564,16 @@ class Judge:
                 label_gen = self.jump(local, label)
                 self.codegen(Out_Goto(label_gen))
                 return
-            e_call, unions = spec(self, A_bool, "__call__", tuple([a]))
+            instance, e_call, unions = spec(
+                self, A_bool, "__call__", tuple([a])
+            )
             if not isinstance(e_call, (Out_Call, DynAbsVal)):
                 a_cond = e_call
             else:
                 j = alloc(local)
                 a_cond = DynAbsVal(j, A_bool)
                 self.codegen(Out_Assign(a_cond, e_call))
-
+            a_cond = instance if instance is not UNDEF else a_cond
             if isinstance(a_cond, bool):
                 label = hd.then if a else hd.otherwise
                 self.jump(local, label)
@@ -554,42 +593,44 @@ class Judge:
             assert isinstance(attr, str)
             a_args = []
             for arg in hd.args:
-                if arg is None:
+                if arg is UNDEF:
                     a_args.extend(self.unpack)
                 else:
                     a_args.append(judge_lit(local, arg))
             a_args = tuple(a_args)
             local = decref(local, a_x)
-            e_call, unions = spec(self, a_subj, attr, a_args)
-
+            instance, e_call, unions = spec(self, a_subj, attr, a_args)
             if not isinstance(e_call, (Out_Call, DynAbsVal)):
+                e_call = instance if instance is not UNDEF else e_call
                 local = local.up_store(
                     local.store.set(hd.target.i, e_call)
                 )
-                self.stmt(local, xs)
+                self.stmt(local, xs, index + 1)
                 return
 
             j = alloc(local)
 
             a_u = DynAbsVal(j, unions[0] if len(unions) == 1 else A_top)
             self.codegen(Out_Assign(a_u, e_call))
-            local = incref(local, a_u)
             split = [judge_coerce(a_u, t) for t in unions]
 
             (code, a), *union_classed = split
             if not union_classed:
+                a = instance if instance is not UNDEF else a
+                local = incref(local, a)
                 self.codegen(*code)
                 local = local.up_store(local.store.set(hd.target.i, a))
-                self.stmt(local, xs)
+                self.stmt(local, xs, index + 1)
                 return
             cases: _t.List[_t.Tuple[AbsVal, _t.List[Out_Instr]]] = []
             for (code, a), t in zip(split, unions):
+                local_i = incref(local, a)
                 cases.append((t, code))
-                local_i = local.up_store(
-                    local.store.set(hd.target.i, a)
+                local_i = local_i.up_store(
+                    local_i.store.set(hd.target.i, a)
                 )
                 with self.use_code(code):
-                    self.stmt(local_i, xs)
+                    self.stmt(local_i, xs, index + 1)
             self.codegen(
                 Out_Case(Out_Call(A_class, [a_u]), dict(cases))
             )
@@ -603,32 +644,60 @@ class Judge:
         gen_label = self.gen_label()
         code = []
         with self.use_code(code):
-            self.stmt(local, iter(self.in_blocks[label]))
+            self.stmt(local, self.in_blocks[label], 0)
         self.out_blocks[gen_label] = code
         return gen_label
 
 
+def _check(f):
+    _valid_types = (
+        *literal_runtime_types,
+        CAPI,
+        DynAbsVal,
+        Constant,
+        StAbsVal,
+        PrimAbsVal,
+        Out_Call,
+    )
+
+    def call(self, a, attr, args):
+        inst, a, ts = f(self, a, attr, args)
+        print(f"|specialising {a!r}.{attr!r}{args!r} -> {inst}")
+
+        assert isinstance(a, _valid_types)
+        assert isinstance(ts, tuple)
+        return inst, a, ts
+
+    return call
+
+
+@_check
 def spec(
     self: Judge,
     a_subj: AbsVal,
     attr: str,
     a_args: _t.Tuple[AbsVal, ...],
-) -> _t.Tuple[Out_Expr, _t.Tuple[AbsVal, ...]]:
-    print(f"|specialising {a_subj}.{attr}{a_args}|")
+) -> _t.Tuple[
+    _t.Union[object, AbsVal], Out_Expr, _t.Tuple[AbsVal, ...]
+]:
 
     if attr == "__call__":
         default_call = PrimAbsVal.CallU(a_subj, *a_args)
-        default = default_call, (A_top,)
+        default = UNDEF, default_call, (A_top,)
     else:
         default_call = A_callmethod(a_subj, attr, *a_args)
-        default = default_call, (A_top,)
+        default = UNDEF, default_call, (A_top,)
+
+    c_a_subj = judge_class(a_subj)
+    if c_a_subj == A_bot or a_subj == A_bot:
+        return UNDEF, A_bot, (A_bot,)
 
     if isinstance(a_subj, PrimAbsVal) and attr == "__call__":
         if a_subj is PrimAbsVal.CreateTuple:
             a_ts = tuple(map(judge_class, a_args))
             a_t = StAbsVal(Name_TUPLE, a_ts)
             e = PrimAbsVal.CallC(a_t, CAPIs.CreateTuple, *a_args)
-            return e, (a_t,)
+            return UNDEF, e, (a_t,)
         elif a_subj is PrimAbsVal.GetTypeField:
             if len(a_args) != 2 or not isinstance(a_args[1], int):
                 raise TypeError(
@@ -638,27 +707,34 @@ def spec(
             a_t, i = a_args[0], a_args[1]
             if isinstance(a_t, StAbsVal) and i < len(a_t.ts):
                 a_ret: AbsVal = a_t.ts[i]
-                return a_ret, (judge_class(a_ret),)
-            return A_top, (A_top,)
+                return UNDEF, a_ret, (judge_class(a_ret),)
+            return UNDEF, A_top, (A_top,)
         elif a_subj is PrimAbsVal.CallC:
             # ccall(t, "cfuncname", arg1, arg2)
             if len(a_args) < 2:
                 raise TypeError(
                     f"({a_subj}{a_args}) C call should"
-                    f"take more than 2 arguments!"
+                    f"take more than 2 arguments! "
                 )
-            if isinstance(a_args[0], StAbsVal):
+            if not isinstance(a_args[0], StAbsVal):
                 raise TypeError(
-                    f"({a_subj}{a_args}) C call's 1st argument"
+                    f"({a_subj}{a_args}) C call's 1st argument "
                     f"should be a class!"
                 )
-            if not isinstance(a_args[1], CAPI):
+            capi = a_args[1]
+            if isinstance(capi, str):
+                capi = CAPI(capi)
+            if not isinstance(capi, CAPI):
                 raise TypeError(
-                    f"({a_subj}{a_args}) C call's 2nd argument"
+                    f"({a_subj}{a_args}) C call's 2nd argument "
                     f"should be a literal string!"
                 )
             a_t = a_args[0]
-            return default_call, (a_t,)
+            return (
+                UNDEF,
+                PrimAbsVal.CallC(a_t, capi, *a_args[2:]),
+                (a_t,),
+            )
         elif a_subj is PrimAbsVal.CallU:
             if not a_args:
                 raise TypeError(
@@ -705,7 +781,9 @@ def spec(
 
                 call_record = func_id, parameters
                 if call_record in SpecMaps:  # spec
-                    rettypes, jit_a_func = SpecMaps[call_record]
+                    rettypes, instance, jit_a_func = SpecMaps[
+                        call_record
+                    ]
                     e = jit_a_func(*arguments)
                 elif (
                     call_record in PreSpecMaps
@@ -715,6 +793,7 @@ def spec(
 
                     e = jit_a_func(*arguments)
                     rettypes = (A_top,)
+                    instance = UNDEF
                 else:
                     name = prespec_name(call_record, name=in_def.name)
 
@@ -738,24 +817,33 @@ def spec(
                     instrs = blocks_to_instrs(
                         sub_judge.out_blocks, gen_start
                     )
+
                     rettypes = tuple(
-                        sorted(
-                            {judge_class(r) for r in sub_judge.returns}
-                        )
+                        {judge_class(r) for r in sub_judge.returns}
                     )
+                    instance, *_ = sub_judge.returns
+                    instance = instance if len(rettypes) == 1 else UNDEF
+                    if isinstance(instance, DynAbsVal):
+                        instance = UNDEF
+
                     out_def = Out_Def(
                         parameters,
                         rettypes,
+                        instance,
                         tuple(instrs),
                         name,
                         gen_start,
                     )
                     Out_Def.GenerateCache.append(out_def)
                     jit_a_func = StAbsVal(Name_JIT, (name,))
-                    SpecMaps[call_record] = rettypes, jit_a_func
+                    SpecMaps[call_record] = (
+                        rettypes,
+                        instance,
+                        jit_a_func,
+                    )
                     e = jit_a_func(*arguments)
 
-                return e, rettypes
+                return instance, e, rettypes
             else:
                 return default
         elif a_subj is PrimAbsVal.GetField:
@@ -764,15 +852,26 @@ def spec(
                 return default
             if not isinstance(a_args[1], str):
                 return default
-            if isinstance(a_args[0], StAbsVal):
+            if not isinstance(a_args[0], StAbsVal):
                 return default
+            if judge_class(a_args[0]) == A_moduletype:
+                a_module = a_args[0]
+                o = a_module.shape().to_py(a_module.ts)
+                attribute = getattr(o, a_args[1], UNDEF)
+                if attribute is UNDEF:
+                    return default
+                a_attr = from_runtime(attribute)
+                if isinstance(a_attr, DynAbsVal):
+                    return default
+                return UNDEF, a_attr, (judge_class(a_attr),)
+
             method = judge_resolve(a_args[0], a_args[1])
-            if method is None:
+            if method is UNDEF:
                 # TODO
                 raise TypeError
-            return method, (judge_class(method),)
+            return UNDEF, method, (judge_class(method),)
         elif a_subj is PrimAbsVal.AnyPack:
-            return any(self.unpack), (A_bool,)
+            return UNDEF, any(self.unpack), (A_bool,)
         elif a_subj is PrimAbsVal.IsInstance:
             if len(a_args) != 2:
                 raise TypeError(
@@ -780,14 +879,18 @@ def spec(
                 )
             a1, a2 = a_args[0], a_args[1]
             if judge_class(a1) == A_top or judge_class(a2) == A_top:
-                return default_call, (A_bool,)
+                return UNDEF, default_call, (A_bool,)
             if not isinstance(a2, StAbsVal):
                 # TODO
                 raise TypeError(
                     f"({a_subj}{a_args}) second argument shall be a class."
                 )
             a_t = judge_class(a1)
-            return (a_t in a_t.shape().bases), (A_bool,)
+            return (
+                UNDEF,
+                (a2 == a_t or a2 in a_t.shape().bases),
+                (A_bool,),
+            )
         elif a_subj is PrimAbsVal.GetClass:
             if len(a_args) != 1:
                 raise TypeError(
@@ -796,7 +899,7 @@ def spec(
             a_t = judge_class(a_args[0])
             if a_t == A_top:
                 return default
-            return a_t, (judge_class(a_t),)
+            return UNDEF, a_t, (judge_class(a_t),)
         elif a_subj is PrimAbsVal.GetGlobal:
             if len(a_args) != 1 or not isinstance(a_args[0], str):
                 raise TypeError(
@@ -805,7 +908,7 @@ def spec(
             n = a_args[0]
             if n in self.glob:
                 a_ret = self.glob[n]
-                return a_ret, (judge_class(a_ret),)
+                return UNDEF, a_ret, (judge_class(a_ret),)
             return default
         elif a_subj is PrimAbsVal.Coerce:
             # TODO: msg
@@ -813,46 +916,63 @@ def spec(
                 isinstance(a, StAbsVal) for a in a_args[:-1]
             ), "invalid coerce"
             a_ts = a_args[:-1]
-            return default_call, a_ts
+            return UNDEF, default_call, a_ts
         elif a_subj is PrimAbsVal.Not:
-            assert len(a_args) != 1, "invalid 'not' check"
+            assert len(a_args) == 1, "invalid 'not' check"
             a = a_args[0]
             if isinstance(a, (str, int, float, bool)):
                 test = not a
-                return test, (A_bool,)
-            return PrimAbsVal.CallC(A_bool, CAPIs.Not, a), (A_bool,)
+                return UNDEF, test, (A_bool,)
+            return (
+                UNDEF,
+                PrimAbsVal.CallC(A_bool, CAPIs.Not, a),
+                (A_bool,),
+            )
 
         elif a_subj is PrimAbsVal.Is:
             # TODO: err msg
-            assert len(a_args) != 2, "invalid 'is' check"
+            assert len(a_args) == 2, f"(is{a_args}) invalid 'is' check"
             a1, a2 = a_args[0], a_args[1]
             if isinstance(a1, DynAbsVal) or isinstance(a2, DynAbsVal):
                 e = PrimAbsVal.CallC(A_bool, CAPIs.Is, a1, a2)
-                return e, (A_bool,)
+                return UNDEF, e, (A_bool,)
             else:
                 test = a1 == a2
-                return test, (A_bool,)
-
-    elif (
-        judge_class(a_subj) == A_top
-    ):
-        if isinstance(a_subj, DynAbsVal):
+                return UNDEF, test, (A_bool,)
+    elif c_a_subj == A_class:
+        if isinstance(a_subj, (DynAbsVal, Constant)):
+            return default
+        method = judge_resolve(judge_class(a_subj), attr)
+        if method is UNDEF:
+            return default
+        return spec(self, method, "__call__", (a_subj, *a_args))
+    elif c_a_subj == A_top:
+        if isinstance(a_subj, (DynAbsVal, Constant)):
             return default
         method = judge_resolve(a_subj, attr)
-        if not method:
+        if method is UNDEF:
             return default
         return spec(self, method, "__call__", a_args)
+    elif c_a_subj == A_moduletype:
+        a_module = a_subj
+        o = a_module.shape().to_py(a_module.ts)
+        attribute = getattr(o, attr, UNDEF)
+        if attribute is UNDEF:
+            return default
+        a_attr = from_runtime(attribute)
+        if isinstance(a_attr, DynAbsVal):
+            return default
+        return spec(self, a_attr, "__call__", a_args)
     else:
         a_class = judge_class(a_subj)
         method = judge_resolve(a_class, attr)
-        if not method:
+        if method is UNDEF:
             return default
         spec_a_args = a_subj, *a_args
         return spec(self, method, "__call__", spec_a_args)
 
 
 # Setup
-import operator
 
 CompiledFunctions = {}
 UserFunctions = {}
@@ -876,10 +996,11 @@ def register_simple(t: object, a_cls: AbsVal):
 
 Name_TYPE = type
 A_class = register_simple(Name_TYPE, A_top)
+A_class.shape().cls = A_class
+
 
 def register_simple_type(t: type):
     return register_simple(t, A_class)
-
 
 
 Name_BOOL = bool
@@ -894,6 +1015,9 @@ Name_TUPLE = tuple
 A_tuple = register_simple_type(Name_TUPLE)
 Name_LIST = list
 A_list = register_simple_type(Name_LIST)
+A_notimpltype = register_simple_type(type(NotImplemented))
+A_notimpl = register_simple(NotImplemented, A_notimpltype)
+A_notimpltype.shape().instance = lambda _: A_notimpl
 
 Name_FUNTYPE = type(register_simple_type)
 A_functype = register_simple_type(Name_FUNTYPE)
@@ -902,16 +1026,9 @@ A_functype = register_simple_type(Name_FUNTYPE)
 Name_NONETYPE = "NoneType"
 A_nonetype = StAbsVal(Name_NONETYPE)
 ShapeSystem[Name_NONETYPE] = Shape(
-    Name_NONETYPE, A_class, [], {}, lambda _: type(None)
+    Name_NONETYPE, A_class, [], {}, lambda _: type(None), lambda _: None
 )
 STATIC_VALUE_MAPS[type(None)] = A_nonetype
-
-Name_NONE = "none"
-A_none = StAbsVal(Name_NONE)
-ShapeSystem[Name_NONE] = Shape(
-    Name_NONE, A_nonetype, [], {}, lambda _: None
-)
-STATIC_VALUE_MAPS[None] = A_none
 
 Name_BOT = "bot"
 A_bot = StAbsVal(Name_BOT)
@@ -921,8 +1038,16 @@ _shape_bot = ShapeSystem[Name_BOT] = Shape(
 _shape_bot.cls = A_bot
 
 A_setattr = register_simple(setattr, a_cls=A_top)
-A_getattr = register_simple(setattr, a_cls=A_top)
+A_getattr = register_simple(getattr, a_cls=A_top)
 A_callmethod = CAPI("call_method")
+
+
+A_moduletype = register_simple_type(_types.ModuleType)
+
+Name_MOD = "module"
+ShapeSystem[Name_MOD] = Shape(
+    Name_MOD, A_moduletype, [], {}, lambda xs: sys.modules[xs[0]]
+)
 
 Name_FUN = "func"
 ShapeSystem[Name_FUN] = Shape(
@@ -933,16 +1058,38 @@ ShapeSystem[Name_JIT] = Shape(
     Name_FUN, A_top, [], {}, lambda xs: CompiledFunctions[xs[0]]
 )
 
-
-class Arith:
-    A_getitem = register_simple(operator.getitem, A_top)
-    A_mul = register_simple(operator.mul, A_top)
-    A_true_div = register_simple(operator.truediv, A_top)
-    A_floor_div = register_simple(operator.floordiv, A_top)
-    A_add = register_simple(operator.add, A_top)
-    A_sub = register_simple(operator.sub, A_top)
-    A_or = register_simple(operator.or_, A_top)
-
-
 _shape_funtype = ShapeSystem[Name_FUNTYPE]
 _shape_funtype.fields["__call__"] = PrimAbsVal.CallU
+literal_runtime_abs_typemap = {
+    int: A_int,
+    type(None): A_nonetype,
+    float: A_float,
+    bool: A_bool,
+    str: A_str,
+    complex: A_top,  # TODO
+}
+
+STATIC_VALUE_MAPS.update(
+    {
+        isinstance: PrimAbsVal.IsInstance,
+    }
+)
+primitive_abs_typemap = {PrimAbsVal.IsInstance: isinstance}
+
+import operator
+
+
+class Bin:
+    add = register_simple(operator.add, A_top)
+    sub = register_simple(operator.sub, A_top)
+    or_ = register_simple(operator.or_, A_top)
+    floordiv = register_simple(operator.floordiv, A_top)
+    truediv = register_simple(operator.truediv, A_top)
+    mul = register_simple(operator.mul, A_top)
+    getitem = register_simple(operator.getitem, A_top)
+    lt = register_simple(operator.lt, A_top)
+    gt = register_simple(operator.gt, A_top)
+    le = register_simple(operator.le, A_top)
+    ge = register_simple(operator.ge, A_top)
+    eq = register_simple(operator.eq, A_top)
+    ne = register_simple(operator.ne, A_top)
