@@ -119,3 +119,4 @@ LOAD_METHOD = opcode.opmap['LOAD_METHOD']
 CALL_METHOD = opcode.opmap['CALL_METHOD']
 CALL_FINALLY = opcode.opmap['CALL_FINALLY']
 POP_FINALLY = opcode.opmap['POP_FINALLY']
+
