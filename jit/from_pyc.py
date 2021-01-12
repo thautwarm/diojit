@@ -63,7 +63,7 @@ def _from_pyc(x: dis.Instruction, co: CodeType):
     elif x.opcode is opname.POP_JUMP_IF_FALSE:
         yield JumpIf(False, False, x.arg)
 
-    elif x.opcode is opname.JUMP_IF_TRUE_OR_POP:
+    elif x.opcode is opname.POP_JUMP_IF_TRUE:
         yield JumpIf(True, False, x.arg)
 
     #  *_METHOD is treated as regular member lookup
