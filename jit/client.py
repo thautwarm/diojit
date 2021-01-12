@@ -2,8 +2,9 @@ import jit.translate as translate
 import jit.core as core
 import jit.cflags as cflags
 import typing as _t
-
+import builtins
 import types
+from collections import ChainMap
 
 
 def jit(
@@ -19,6 +20,10 @@ def jit(
         return _jit(func, {})
 
 
+def eager_jit(f: types.FunctionType):
+    return _jit(f, f.__globals__)
+
+
 function = type(jit)
 
 
@@ -29,13 +34,22 @@ def _jit(func: types.FunctionType, glob):
 
     code = func.__code__
     hasvararg = bool(code.co_flags & cflags.VARARGS)
-    blocks = translate.translate(func)
+    blocks, glob_names = translate.translate(func)
+
+    abs_glob = {}
+    glob = ChainMap(builtins.__dict__, glob)
+    for n in glob_names:
+        if n not in glob:
+            continue
+        var = core.from_runtime(glob[n])
+        if not isinstance(var, core.DynAbsVal):
+            abs_glob[n] = var
 
     in_def = core.In_Def(
         code.co_argcount,
         hasvararg,
         blocks,
-        glob,
+        abs_glob,
         func.__name__,
         "entry",
     )
@@ -48,15 +62,8 @@ def _jit(func: types.FunctionType, glob):
     return func
 
 
-def display_corecpy(func):
-    ufunc: core.StAbsVal = core.STATIC_VALUE_MAPS[func]
-    in_def = core.In_Def.UserCodeDyn[ufunc.ts[0]]
-    in_def.show()
-
-
-def jit_call(f, *args, attr="__call__", glob=None):
-    map_info = {}
-    a_f = core.from_runtime(f, map_info)
-    a_args = tuple(core.from_runtime(a, map_info) for a in args)
+def jit_spec_call(f, *args, attr="__call__", glob=None):
+    a_f = core.from_runtime(f)
+    a_args = tuple(core.from_runtime(a) for a in args)
     j = core.Judge({}, [], {} if glob is None else glob)
-    return map_info, core.spec(j, a_f, attr, a_args)
+    return core.spec(j, a_f, attr, a_args)

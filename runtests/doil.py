@@ -17,21 +17,25 @@ def type_new(t, *_):
     glob={
         "any_pack": core.PrimAbsVal.AnyPack,
         "type_new": core.from_runtime(type_new),
-        # "type": core.A_class,
-        "type": core.PrimAbsVal.GetClass
+        "type": core.A_class,
+        "get_class": core.PrimAbsVal.GetClass,
     }
 )
-def type_call(a, *_):
-    # if any_pack():
-    #     return type_new(a, ...)
-    return type(a)
+def type_call(cls, a, *_):
+
+    if cls is type:
+        # if any_pack(): TODO: create new type
+        #
+        return get_class(a)
+
+    return type_new(a, ...)
 
 
 shape_class = core.A_class.shape()
 shape_class.fields["__call__"] = core.from_runtime(type_call)
 
 
-shape_add = core.Arith.A_add.shape()
+shape_add = core.Bin.A_add.shape()
 
 
 @jit
@@ -75,6 +79,6 @@ m, e = jit_call(type, 1)
 print(m)
 print(e)
 
-print(''.center(100, '='))
+print("".center(100, "="))
 for each in core.Out_Def.GenerateCache:
     each.show()

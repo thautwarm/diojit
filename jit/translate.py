@@ -20,22 +20,23 @@ JUMP_NAMES = frozenset(
 
 
 BIN_OPS = {
-    opname.BINARY_OR: core.Arith.A_or,
-    opname.BINARY_ADD: core.Arith.A_add,
-    opname.BINARY_SUBTRACT: core.Arith.A_sub,
-    opname.BINARY_FLOOR_DIVIDE: core.Arith.A_floor_div,
-    opname.BINARY_TRUE_DIVIDE: core.Arith.A_true_div,
-    opname.BINARY_MULTIPLY: core.Arith.A_mul,
-    opname.BINARY_SUBSCR: core.Arith.A_getitem,
+    opname.BINARY_OR: core.Bin.or_,
+    opname.BINARY_ADD: core.Bin.add,
+    opname.BINARY_SUBTRACT: core.Bin.sub,
+    opname.BINARY_FLOOR_DIVIDE: core.Bin.floordiv,
+    opname.BINARY_TRUE_DIVIDE: core.Bin.truediv,
+    opname.BINARY_MULTIPLY: core.Bin.mul,
+    opname.BINARY_SUBSCR: core.Bin.getitem,
 }
 
 
 CMP_OPS = {
-    "<": "__lt__",
-    ">": "__gt__",
-    "<=": "__le__",
-    ">=": "__ge__",
-    "!=": "__ne__",
+    "<": core.Bin.lt,
+    ">": core.Bin.gt,
+    "<=": core.Bin.le,
+    ">=": core.Bin.ge,
+    "!=": core.Bin.ne,
+    "==": core.Bin.eq
 }
 
 
@@ -53,6 +54,7 @@ class PyC:
                 instr = self.co[i + 1]
                 _map[instr.offset] = i + 1
 
+        self.glob_names = set()
         self.offset = 0
         code: _types.CodeType = co.codeobj
         self.hasvararg = bool(code.co_flags & cflags.VARARGS)
@@ -70,7 +72,7 @@ class PyC:
 
     def make(self):
         self.interp(0)
-        return self.blocks
+        return self.blocks, self.glob_names
 
     def is_jump_target(self, bytecode_offset: int):
         return bytecode_offset in self.label_to_co_offsets
@@ -83,11 +85,9 @@ class PyC:
         self.cur_block.extend(stmts)
 
     def cur(self) -> dis.Instruction:
-        # noinspection PyUnresolvedReferences
         return self.co[self.offset]
 
     def next(self) -> dis.Instruction:
-        # noinspection PyUnresolvedReferences
         return self.co[self.offset + 1]
 
     def push(self, a: core.AbsVal):
@@ -155,7 +155,7 @@ class PyC:
         for _ in range(n):
             arg = self.pop()
             if arg == self.packing:
-                args.append(None)
+                args.append(core.UNDEF)
             else:
                 args.append(arg)
         self.packing = None
@@ -171,9 +171,15 @@ class PyC:
                 return
 
             if x.opcode is opname.LOAD_CONST:
-                self.push(x.argval)
-                if x.argval is ...:
+                argval = x.argval
+                if isinstance(argval, tuple):
+                    self.push(core.from_runtime(argval))
+                elif isinstance(argval, core.literal_runtime_types):
+                    self.push(argval)
+                elif argval is ...:
+                    self.push(...)
                     self.packing = self.peek(0)
+
             elif x.opcode is opname.LOAD_FAST:
                 var = self.varlocal(x.arg)
                 self.push(var)
@@ -182,6 +188,7 @@ class PyC:
                 var = self.varlocal(x.arg)
                 self.codegen(core.In_Move(var, tos))
             elif x.opcode is opname.LOAD_GLOBAL:
+                self.require_global(x.argval)
                 self.call(core.PrimAbsVal.GetGlobal, x.argval)
             elif x.opcode is opname.STORE_GLOBAL:
                 raise NotImplemented
@@ -234,7 +241,7 @@ class PyC:
                 self.push(x.argval)
             elif x.opcode is opname.LOAD_ATTR:
                 tos = self.pop()
-                self.call(core.A_getattr, tos, x.argval)
+                self.call(core.PrimAbsVal.GetField, tos, x.argval)
             elif x.opcode is opname.CALL_METHOD:
                 args = self.get_nargs(x.argval)
                 attr = self.pop()
@@ -336,7 +343,19 @@ class PyC:
 
             elif x.opcode is opname.POP_TOP:
                 self.pop()
+            else:
+                raise
             self.offset += 1
+
+    def build_const_tuple(self, argval: tuple):
+        for each in argval:
+            if isinstance(each, tuple):
+                self.build_const_tuple(each)
+            else:
+                self.push(each)
+
+    def require_global(self, argval):
+        self.glob_names.add(argval)
 
 
 def translate(f):
