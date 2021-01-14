@@ -4,7 +4,6 @@ import jit.opname as opname
 import jit.cflags as cflags
 import dis
 import types as _types
-import inspect
 from contextlib import contextmanager
 
 __all__ = ["translate"]
@@ -26,17 +25,17 @@ BIN_OPS = {
     opname.BINARY_FLOOR_DIVIDE: core.Bin.floordiv,
     opname.BINARY_TRUE_DIVIDE: core.Bin.truediv,
     opname.BINARY_MULTIPLY: core.Bin.mul,
-    opname.BINARY_SUBSCR: core.Bin.getitem,
+    opname.BINARY_MODULO: core.Bin.modulo
 }
 
 
 CMP_OPS = {
-    "<": core.Bin.lt,
-    ">": core.Bin.gt,
-    "<=": core.Bin.le,
-    ">=": core.Bin.ge,
-    "!=": core.Bin.ne,
-    "==": core.Bin.eq
+    "<": '__lt__',
+    ">": '__gt__',
+    "<=": '__le__',
+    ">=": '__ge__',
+    "!=": '__ne__',
+    "==": '__eq__'
 }
 
 
@@ -179,7 +178,6 @@ class PyC:
                 elif argval is ...:
                     self.push(...)
                     self.packing = self.peek(0)
-
             elif x.opcode is opname.LOAD_FAST:
                 var = self.varlocal(x.arg)
                 self.push(var)
@@ -305,6 +303,9 @@ class PyC:
                 a = self.peek(0)
                 self.push(a)
                 self.push(a)
+            elif x.opcode is opname.BINARY_SUBSCR:
+                right, left = self.pop(), self.pop()
+                self.call_method(left, "__getitem__", right)
             elif x.opname.startswith("BINARY_"):
                 right, left = self.pop(), self.pop()
                 self.call(BIN_OPS[x.opcode], left, right)
