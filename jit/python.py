@@ -11,13 +11,17 @@ def display_corecpy(func):
 
 
 any_pack = RuntimeWrap(PrimAbsVal.AnyPack)
+elim_type_vars = RuntimeWrap(PrimAbsVal.ElimTypeVars)
 get_field = RuntimeWrap(PrimAbsVal.GetField)
 ccall = RuntimeWrap(PrimAbsVal.CallC)
+is_static = RuntimeWrap(PrimAbsVal.IsStatic)
+static_call = RuntimeWrap(PrimAbsVal.CallS)
 coerce = RuntimeWrap(PrimAbsVal.Coerce)
 get_type_field = RuntimeWrap(PrimAbsVal.GetTypeField)
 ucall = RuntimeWrap(PrimAbsVal.CallU)
 get_class = RuntimeWrap(PrimAbsVal.GetClass)
-untyped = _t.cast(_t.Type[object], RuntimeWrap(A_bot))
+bottom = _t.cast(_t.Type[object], RuntimeWrap(A_bot))
+top = _t.cast(_t.Type[object], RuntimeWrap(A_top))
 
 
 @eager_jit
@@ -65,7 +69,7 @@ Bin.sub.shape().fields["__call__"] = from_runtime(sub)
 
 
 @eager_jit
-def init_do_nothing(self, a):
+def init_do_nothing(self, *_):
     pass
 
 
@@ -76,7 +80,23 @@ def int_add(self, b):
     return NotImplemented
 
 
+@eager_jit
+def int_sub(self, b):
+    if isinstance(b, int) and isinstance(self, int):
+        return ccall(int, "c_int_sub", self, b)
+    return NotImplemented
+
+
+@eager_jit
+def int_lt(self, b):
+    if isinstance(b, int) and isinstance(self, int):
+        return ccall(bool, "c_int_lt", self, b)
+    return coerce(bool, operator.lt(self, b))
+
+
 A_int.shape().fields["__add__"] = from_runtime(int_add)
+A_int.shape().fields["__sub__"] = from_runtime(int_sub)
+A_int.shape().fields["__lt__"] = from_runtime(int_lt)
 
 
 @eager_jit
@@ -105,6 +125,56 @@ A_float.shape().fields["__new__"] = from_runtime(float_type_new)
 A_float.shape().fields["__init__"] = from_runtime(init_do_nothing)
 
 
+@eager_jit
+def bool_type_new(cls, a):
+    if isinstance(a, bool):
+        return a
+    if isinstance(a, float):
+        return coerce(bool, a != 0.0)
+    if isinstance(a, int):
+        return coerce(bool, a != 0)
+    if isinstance(a, str):
+        return a == ""
+    return ucall(bool, a)
+
+
+A_bool.shape().fields["__new__"] = from_runtime(bool_type_new)
+A_bool.shape().fields["__init__"] = from_runtime(init_do_nothing)
+
+
+@eager_jit
+def dict_getitem(self, key):
+    if is_static(key):
+        return ccall(
+            top,
+            "PyDict_GetItem_KnownHash",
+            self,
+            key,
+            static_call(hash, key),
+        )
+    return ccall(top, "PyDict_GetItemWithError", self, key)
+
+
+A_dict.shape().fields["__getitem__"] = from_runtime(dict_getitem)
+
+
+@eager_jit
+def tuple_getitem(self, key):
+    c = get_class(self)
+    if (
+        elim_type_vars(c) is tuple
+        and is_static(key)
+        and isinstance(key, int)
+    ):
+        t = get_type_field(get_class(self), key)
+        if t is not top and t is not bottom:
+            return ccall(t, "PyTuple_GET_ITEM", self, key)
+    return ccall(top, "PyTuple_GetItem", self, key)
+
+
+A_tuple.shape().fields["__getitem__"] = from_runtime(tuple_getitem)
+
+
 # A_int.shape().fields.update(
 #     __add__=int_add,
 #     __sub__=int_sub,
@@ -113,18 +183,3 @@ A_float.shape().fields["__init__"] = from_runtime(init_do_nothing)
 
 
 # print(in_def.glob)
-
-
-@eager_jit
-def test():
-    return float.__new__("1")
-
-
-in_def = In_Def.UserCodeDyn[from_runtime(test).ts[0]]
-in_def.show()
-
-
-print(jit_spec_call(test))
-print()
-for each in reversed(Out_Def.GenerateCache):
-    each.show()

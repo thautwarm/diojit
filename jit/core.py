@@ -1,6 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from contextlib import contextmanager
+from collections import defaultdict, OrderedDict
 from enum import Enum
 import typing as _t
 import types as _types
@@ -20,10 +21,13 @@ class Out_IExpr:
         return Out_Call(self, list(args))
 
 
-@dataclass(frozen=True)
 class Constant(Out_IExpr):
     o: object
     t: AbsVal
+
+    def __init__(self, o, t):
+        self.o = o
+        self.t = t
 
     def __repr__(self):
         return f"const[{self.o!r}]^[{self.t}]"
@@ -76,6 +80,9 @@ class PrimAbsVal(Out_IExpr, Enum):
     Not = 9
     IsInstance = 10
     AnyPack = 11
+    IsStatic = 12
+    CallS = 13
+    ElimTypeVars = 14
 
     def __repr__(self):
         return "@" + self.name
@@ -270,10 +277,13 @@ class In_Def:
 # DO-IL
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class Out_Call(Out_IExpr):
     func: Out_Expr
-    args: _t.List[Out_Expr]
+    args: _t.Tuple[Out_Expr, ...]
+
+    def __post_init__(self):
+        self.args = tuple(self.args)
 
     def __repr__(self):
         return f"{self.func}{tuple(self.args)}"
@@ -282,7 +292,7 @@ class Out_Call(Out_IExpr):
 Out_Expr = _t.Union[AbsVal, Out_Call]
 
 
-@dataclass
+@dataclass(frozen=True)
 class Out_Assign:
     target: DynAbsVal
     expr: Out_Expr
@@ -291,10 +301,15 @@ class Out_Assign:
         print(f"{prefix}{self.target} = {self.expr!r}")
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class Out_Case:
     test: Out_Expr
-    cases: _t.Dict[AbsVal, _t.List[Out_Instr]]
+    cases: _t.Mapping[AbsVal, _t.Tuple[Out_Instr, ...]]
+
+    def __post_init__(self):
+        self.cases = pyrsistent.pmap(
+            {k: tuple(v) for k, v in self.cases.items()}
+        )
 
     def show(self, prefix):
         print(f"{prefix}case {self.test!r}")
@@ -303,7 +318,7 @@ class Out_Case:
             show_many(xs, prefix + "    ")
 
 
-@dataclass
+@dataclass(frozen=True)
 class Out_Label:
     label: str
 
@@ -311,7 +326,7 @@ class Out_Label:
         print(f"label {self.label}:")
 
 
-@dataclass
+@dataclass(frozen=True)
 class Out_Goto:
     label: str
 
@@ -319,7 +334,7 @@ class Out_Goto:
         print(f"{prefix}goto {self.label}:")
 
 
-@dataclass
+@dataclass(frozen=True)
 class Out_Return:
     value: Out_Expr
 
@@ -334,7 +349,7 @@ Out_Instr = _t.Union[
 CallRecord = _t.Tuple[str, _t.Tuple[AbsVal, ...]]
 
 
-def show_many(xs: _t.List[Out_Instr], prefix):
+def show_many(xs: _t.Iterable[Out_Instr], prefix):
     for each in xs:
         each.show(prefix)
 
@@ -436,7 +451,7 @@ def incref(local: Local, a: AbsVal):
         mem = mem.set(i, ref + 1)
     except IndexError:
         assert len(mem) == i
-        mem.append(1)
+        mem = mem.append(1)
     return local.up_mem(mem)
 
 
@@ -495,11 +510,18 @@ def judge_resolve(t: _t.Union[StAbsVal, Constant], method: str):
 def blocks_to_instrs(
     blocks: _t.Dict[str, _t.List[Out_Instr]], start: str
 ):
-    instrs = []
+    merge_blocks = defaultdict(OrderedDict)
     for label, block in sorted(
         blocks.items(), key=lambda pair: pair[0] != start
     ):
-        instrs.append(Out_Label(label))
+        block = tuple(block)
+        labels = merge_blocks[block]
+        labels[label] = None
+    instrs = []
+
+    for block, labels in merge_blocks.items():
+        for label in labels:
+            instrs.append(Out_Label(label))
         instrs.extend(block)
     return instrs
 
@@ -559,25 +581,26 @@ class Judge:
             self.codegen(Out_Return(a))
         elif isinstance(hd, In_Cond):
             a = judge_lit(local, hd.test)
-            if isinstance(a, bool):
-                label = hd.then if a else hd.otherwise
+            if judge_class(a) == A_bool:
+                a_cond = a
+            else:
+                instance, e_call, unions = spec(
+                    self, A_bool, "__call__", tuple([a])
+                )
+                if not isinstance(e_call, (Out_Call, DynAbsVal)):
+                    a_cond = e_call
+                else:
+                    j = alloc(local)
+                    a_cond = DynAbsVal(j, A_bool)
+                    self.codegen(Out_Assign(a_cond, e_call))
+                a_cond = instance if instance is not UNDEF else a_cond
+
+            if isinstance(a_cond, bool):
+                label = hd.then if a_cond else hd.otherwise
                 label_gen = self.jump(local, label)
                 self.codegen(Out_Goto(label_gen))
                 return
-            instance, e_call, unions = spec(
-                self, A_bool, "__call__", tuple([a])
-            )
-            if not isinstance(e_call, (Out_Call, DynAbsVal)):
-                a_cond = e_call
-            else:
-                j = alloc(local)
-                a_cond = DynAbsVal(j, A_bool)
-                self.codegen(Out_Assign(a_cond, e_call))
-            a_cond = instance if instance is not UNDEF else a_cond
-            if isinstance(a_cond, bool):
-                label = hd.then if a else hd.otherwise
-                self.jump(local, label)
-                return
+
             l1 = self.jump(local, hd.then)
             l2 = self.jump(local, hd.otherwise)
             self.codegen(
@@ -590,51 +613,59 @@ class Judge:
             a_x = judge_lit(local, hd.target)
             a_subj = judge_lit(local, hd.sub)
             attr = judge_lit(local, hd.attr)
-            assert isinstance(attr, str)
+            assert isinstance(
+                attr, str
+            ), f"attr {attr} shall be a string"
             a_args = []
             for arg in hd.args:
                 if arg is UNDEF:
                     a_args.extend(self.unpack)
                 else:
                     a_args.append(judge_lit(local, arg))
-            a_args = tuple(a_args)
             local = decref(local, a_x)
+            a_args = tuple(a_args)
             instance, e_call, unions = spec(self, a_subj, attr, a_args)
             if not isinstance(e_call, (Out_Call, DynAbsVal)):
                 e_call = instance if instance is not UNDEF else e_call
+                local = incref(local, e_call)
                 local = local.up_store(
                     local.store.set(hd.target.i, e_call)
                 )
                 self.stmt(local, xs, index + 1)
-                return
-
-            j = alloc(local)
-
-            a_u = DynAbsVal(j, unions[0] if len(unions) == 1 else A_top)
-            self.codegen(Out_Assign(a_u, e_call))
-            split = [judge_coerce(a_u, t) for t in unions]
-
-            (code, a), *union_classed = split
-            if not union_classed:
-                a = instance if instance is not UNDEF else a
-                local = incref(local, a)
-                self.codegen(*code)
-                local = local.up_store(local.store.set(hd.target.i, a))
-                self.stmt(local, xs, index + 1)
-                return
-            cases: _t.List[_t.Tuple[AbsVal, _t.List[Out_Instr]]] = []
-            for (code, a), t in zip(split, unions):
-                local_i = incref(local, a)
-                cases.append((t, code))
-                local_i = local_i.up_store(
-                    local_i.store.set(hd.target.i, a)
+            else:
+                j = alloc(local)
+                a_u = DynAbsVal(
+                    j, unions[0] if len(unions) == 1 else A_top
                 )
-                with self.use_code(code):
-                    self.stmt(local_i, xs, index + 1)
-            self.codegen(
-                Out_Case(Out_Call(A_class, [a_u]), dict(cases))
-            )
-            return
+                self.codegen(Out_Assign(a_u, e_call))
+                split = [judge_coerce(a_u, t) for t in unions]
+
+                (code, a), *union_classed = split
+                if not union_classed:
+                    if instance is not UNDEF:
+                        a = instance
+                    local = incref(local, a)
+                    self.codegen(*code)
+                    local = local.up_store(
+                        local.store.set(hd.target.i, a)
+                    )
+                    self.stmt(local, xs, index + 1)
+                else:
+                    cases: _t.List[
+                        _t.Tuple[AbsVal, _t.List[Out_Instr]]
+                    ] = []
+                    for (code, a), t in zip(split, unions):
+                        cases.append((t, code))
+                        local_i = incref(local, a)
+                        local_i = local_i.up_store(
+                            local_i.store.set(hd.target.i, a)
+                        )
+                        with self.use_code(code):
+                            self.stmt(local_i, xs, index + 1)
+                    self.codegen(
+                        Out_Case(Out_Call(A_class, [a_u]), dict(cases))
+                    )
+        return
 
     def jump(self, local: Local, label: str) -> str:
         key = (label, local)
@@ -642,6 +673,7 @@ class Judge:
         if gen_label:
             return gen_label
         gen_label = self.gen_label()
+        self.block_map[key] = gen_label
         code = []
         with self.use_code(code):
             self.stmt(local, self.in_blocks[label], 0)
@@ -661,8 +693,8 @@ def _check(f):
     )
 
     def call(self, a, attr, args):
+        # print(f"|specialising {a!r}.{attr}{args!r}")
         inst, a, ts = f(self, a, attr, args)
-        print(f"|specialising {a!r}.{attr!r}{args!r} -> {inst}")
 
         assert isinstance(a, _valid_types)
         assert isinstance(ts, tuple)
@@ -705,9 +737,12 @@ def spec(
                     f"the 2nd argument should be an integer"
                 )
             a_t, i = a_args[0], a_args[1]
-            if isinstance(a_t, StAbsVal) and i < len(a_t.ts):
-                a_ret: AbsVal = a_t.ts[i]
-                return UNDEF, a_ret, (judge_class(a_ret),)
+            if isinstance(a_t, StAbsVal):
+                if i < len(a_t.ts):
+                    a_ret: AbsVal = a_t.ts[i]
+                    return UNDEF, a_ret, (judge_class(a_ret),)
+                else:
+                    return UNDEF, A_bot, (A_bot,)
             return UNDEF, A_top, (A_top,)
         elif a_subj is PrimAbsVal.CallC:
             # ccall(t, "cfuncname", arg1, arg2)
@@ -735,6 +770,20 @@ def spec(
                 PrimAbsVal.CallC(a_t, capi, *a_args[2:]),
                 (a_t,),
             )
+        elif a_subj is PrimAbsVal.IsStatic:
+            # TODO: error msg
+            assert len(a_args) == 1
+            e = not isinstance(a_args[0], DynAbsVal)
+            return UNDEF, e, (A_bool,)
+        elif a_subj is PrimAbsVal.CallS:
+            # TODO: error msg
+            assert len(a_args) >= 2
+            assert all(not isinstance(a, DynAbsVal) for a in a_args)
+            f, *args = map(to_runtime, a_args)
+            a = from_runtime(f(*args))
+            a_t = judge_class(a)
+            return UNDEF, a, (a_t,)
+
         elif a_subj is PrimAbsVal.CallU:
             if not a_args:
                 raise TypeError(
@@ -821,8 +870,8 @@ def spec(
                     rettypes = tuple(
                         {judge_class(r) for r in sub_judge.returns}
                     )
-                    instance, *_ = sub_judge.returns
-                    instance = instance if len(rettypes) == 1 else UNDEF
+                    instance, *__ = sub_judge.returns
+                    instance = instance if not __ else UNDEF
                     if isinstance(instance, DynAbsVal):
                         instance = UNDEF
 
@@ -864,7 +913,6 @@ def spec(
                 if isinstance(a_attr, DynAbsVal):
                     return default
                 return UNDEF, a_attr, (judge_class(a_attr),)
-
             method = judge_resolve(a_args[0], a_args[1])
             if method is UNDEF:
                 # TODO
@@ -891,6 +939,13 @@ def spec(
                 (a2 == a_t or a2 in a_t.shape().bases),
                 (A_bool,),
             )
+        elif a_subj is PrimAbsVal.ElimTypeVars:
+            assert len(a_args) == 1
+            a = a_args[0]
+            if isinstance(a, StAbsVal):
+                a = StAbsVal(a.o, ())
+            return UNDEF, a, (judge_class(a),)
+
         elif a_subj is PrimAbsVal.GetClass:
             if len(a_args) != 1:
                 raise TypeError(
@@ -934,6 +989,10 @@ def spec(
             assert len(a_args) == 2, f"(is{a_args}) invalid 'is' check"
             a1, a2 = a_args[0], a_args[1]
             if isinstance(a1, DynAbsVal) or isinstance(a2, DynAbsVal):
+                a_t1, a_t2 = judge_class(a1), judge_class(a2)
+                if a_t1 != A_top and a_t2 != A_top:
+                    if a_t1 != a_t2:
+                        return UNDEF, False, (A_bool,)
                 e = PrimAbsVal.CallC(A_bool, CAPIs.Is, a1, a2)
                 return UNDEF, e, (A_bool,)
             else:
@@ -1015,6 +1074,9 @@ Name_TUPLE = tuple
 A_tuple = register_simple_type(Name_TUPLE)
 Name_LIST = list
 A_list = register_simple_type(Name_LIST)
+Name_DICT = dict
+A_dict = register_simple_type(Name_DICT)
+
 A_notimpltype = register_simple_type(type(NotImplemented))
 A_notimpl = register_simple(NotImplemented, A_notimpltype)
 A_notimpltype.shape().instance = lambda _: A_notimpl
@@ -1040,7 +1102,6 @@ _shape_bot.cls = A_bot
 A_setattr = register_simple(setattr, a_cls=A_top)
 A_getattr = register_simple(getattr, a_cls=A_top)
 A_callmethod = CAPI("call_method")
-
 
 A_moduletype = register_simple_type(_types.ModuleType)
 
@@ -1093,3 +1154,4 @@ class Bin:
     ge = register_simple(operator.ge, A_top)
     eq = register_simple(operator.eq, A_top)
     ne = register_simple(operator.ne, A_top)
+    modulo = register_simple(operator.mod, A_top)
