@@ -21,6 +21,6 @@ cdef inline dict__getitem_1(d_0_top, s_0):
             label = 2
             continue
         elif label == 2:
-            d_1_top = _PyDict_GetItem_KnownHash(d_0_top, 'constant-key', 8294590235580636541)
+            d_1_top = _PyDict_GetItem_KnownHash(d_0_top, 'constant-key', 1275226973511038342)
             Py_INCREF(<PyObject*>d_1_top)
             return d_1_top

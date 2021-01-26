@@ -3,6 +3,25 @@ from timeit import timeit
 import string
 
 install()
+import motivating
+
+print(motivating.test(50, 1, "2", 3.0))
+
+
+def mot(n, i, s, fl):
+    S = 0
+    t = (i, s, fl)
+    while S < n:
+        t = (t[2], t[0], t[1])
+        S += int(t[0])
+    return S
+
+
+print(timeit(
+    "f(5000, 1, '2', 3.0)", number=10000, globals=dict(f=motivating.test)
+))
+print(timeit("f(5000, 1, '2', 3.0)", number=10000, globals=dict(f=mot)))
+
 _hash = hash("constant-key")
 data = dict(a=1, kkkkk=2)
 data["constant-key"] = 50
@@ -271,9 +290,4 @@ print(
     )
 )
 
-print(
-    timeit(
-        "test24()", number=1900000, globals=dict(test24=test24)
-    )
-)
-
+print(timeit("test24()", number=1900000, globals=dict(test24=test24)))
