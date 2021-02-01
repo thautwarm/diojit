@@ -1,5 +1,5 @@
-from jit import translate
-from jit import core
+from jit.stack2reg import translate
+from jit import absint
 
 
 def f(x):
@@ -10,4 +10,4 @@ def f(x):
 
 
 pyc = translate.PyC(f)
-core.print_in_blocks(pyc.make())
+absint.print_in_blocks(pyc.make())

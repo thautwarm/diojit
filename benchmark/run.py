@@ -7,7 +7,6 @@ import motivating
 
 print(motivating.test(50, 1, "2", 3.0))
 
-
 def mot(n, i, s, fl):
     S = 0
     t = (i, s, fl)
