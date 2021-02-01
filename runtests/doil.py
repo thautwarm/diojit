@@ -1,13 +1,7 @@
-from jit import translate
-from jit import core
-import operator
-import jit.python as jit
-import sys
-
-sys.setrecursionlimit(2000)
+import jit
 
 
-@jit.eager_jit
+@jit.jit
 def test(a):
     t = (1, 2, 3)
     i = 0
@@ -17,11 +11,18 @@ def test(a):
     return i
 
 
-in_def = jit.In_Def.UserCodeDyn[jit.from_runtime(test).ts[0]]
-in_def.show()
+@jit.jit(fixed_references=["test"])
+def f(x):
+    return test(x)
 
 
-print(jit.jit_spec_call(test, 50000))
-print()
-for each in reversed(jit.Out_Def.GenerateCache):
+in_def = jit.absint.In_Def.UserCodeDyn[test]
+# in_def.show()
+callspec = jit.jit_spec_call_ir(f, jit.Val(500))
+print("return types: ", *callspec.possibly_return_types)
+print("instance    : ", callspec.instance)
+print("call expr   : ", callspec.e_call)
+for each in reversed(jit.absint.Out_Def.GenerateCache):
     each.show()
+
+
