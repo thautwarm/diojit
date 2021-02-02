@@ -14,6 +14,8 @@ from io import StringIO
 from typing import Union
 from contextlib import contextmanager
 
+import json
+
 
 class Codegen:
     def __init__(self, out_def: Out_Def):
@@ -25,6 +27,11 @@ class Codegen:
 
     def __lshift__(self, other: str):
         self.io.write(self.indent)
+        self.io.write(other)
+        self.io.write("\n")
+
+    def __matmul__(self, other):
+        self.io.write('\n')
         self.io.write(other)
         self.io.write("\n")
 
@@ -50,7 +57,7 @@ class Codegen:
             if isinstance(base, Intrinsic):
                 return repr(base)
             # get object from address
-            return f'@DIO_Obj({self.uint64(id(v.base))})'
+            return f"@DIO_Obj({self.uint64(id(v.base))})"
 
         return self.var(v)
 
@@ -77,15 +84,83 @@ class Codegen:
         for var in sorted_vars:
             self << f"    {var} = DIO_Undef"
         self << func_body
-        self << "    @label err_handle"
+        self @ "@label except"
         # TODO: add traceback
         self << "    DIO_Return = Py_NULL"
-        self << "    @label return"
+        self @ "@label return"
         for var in sorted_vars:
             self << f"    DIO_DecRef({var})"
         self << "    return DIO_Return"
         self << "end"
-        self << f"DIO_ExceptCode(::typeof({spec_info.abs_jit_func}) = Py_NULL"
+        self << f"DIO.DIO_ExceptCode(::typeof({spec_info.abs_jit_func})) = Py_NULL"
+        narg = len(self.out_def.params)
+
+        doc_io = StringIO()
+        self.out_def.show(lambda *args: print(*args, file=doc_io))
+        # function documentation
+        doc = doc_io.getvalue().replace("$", "\\$")
+        self << (
+            f"const DOC_{spec_info.abs_jit_func} = "
+            f"Base.unsafe_convert(Cstring, {json.dumps(doc)})"
+        )
+        if narg == 0:
+            self << (
+                f"CFunc_{spec_info.abs_jit_func}(_ :: PyPtr, ::PyPtr) = "
+                f"{spec_info.abs_jit_func}()"
+            )
+            self << (
+                f"const CFuncPtr_{spec_info.abs_jit_func} = "
+                f"@cfunction(CFunc_{spec_info.abs_jit_func}, PyPtr, (PyPtr, PyPtr)) "
+            )
+            self << (
+                f"const PyMeth_{spec_info.abs_jit_func} = PyMethodDef(\n"
+                f"    Base.unsafe_convert(Cstring, :{self.out_def.name}),\n"
+                f"    CFuncPtr_{spec_info.abs_jit_func},\n"
+                f"    METH_NOARGS,\n"
+                f"    DOC_{spec_info.abs_jit_func}\n"
+                ")"
+            )
+
+        elif narg == 1:
+            self << (
+                f"CFunc_{spec_info.abs_jit_func}(_ :: PyPtr, o::PyPtr) = "
+                f"{spec_info.abs_jit_func}(o)"
+            )
+            self << (
+                f"const CFuncPtr_{spec_info.abs_jit_func} = "
+                f"@cfunction(CFunc_{spec_info.abs_jit_func}, PyPtr, (PyPtr, PyPtr)) "
+            )
+
+            self << (
+                f"const PyMeth_{spec_info.abs_jit_func} = PyMethodDef(\n"
+                f"    Base.unsafe_convert(Cstring, :{self.out_def.name}),\n"
+                f"    CFuncPtr_{spec_info.abs_jit_func},\n"
+                f"    METH_O,\n"
+                f"    DOC_{spec_info.abs_jit_func}\n"
+                ")"
+            )
+
+        else:
+            self << (
+                f"CFunc_{spec_info.abs_jit_func}(self :: PyPtr, args::Ptr{{PyPtr}}, n::Py_ssize_t) = "
+                f"@DIO_MakePyFastCFunc({spec_info.abs_jit_func}, args, n, {narg})"
+            )
+            self << (
+                f"const CFuncPtr_{spec_info.abs_jit_func} = "
+                f"@cfunction(CFunc_{spec_info.abs_jit_func}, PyPtr, (PyPtr, Ptr{{PyPtr}}, Py_ssize_t))"
+            )
+
+            self << (
+                f"const PyMeth_{spec_info.abs_jit_func} = PyMethodDef(\n"
+                f"    Base.unsafe_convert(Cstring, :{self.out_def.name}),\n"
+                f"    CFuncPtr_{spec_info.abs_jit_func},\n"
+                f"    METH_FASTCALL,\n"
+                f"    DOC_{spec_info.abs_jit_func}\n"
+                ")"
+            )
+        self << (
+            f"const PyFunc_{spec_info.abs_jit_func} = PyCFunction_New(PyMeth_{spec_info.abs_jit_func}, Py_NULL)"
+        )
         return self.io.getvalue()
 
     @contextmanager
@@ -109,7 +184,7 @@ class Codegen:
             self << f"{var} = {val}"
             return
         elif isinstance(instr, Out_Label):
-            self << f"@label {instr.label}"
+            self @ f"@label {instr.label}"
             return
         elif isinstance(instr, Out_Goto):
             self << f"@goto {instr.label}"
@@ -141,5 +216,6 @@ class Codegen:
             self << "end"
             return
         elif isinstance(instr, Out_Error):
-            self << "@DIO_HandleExc"
+            # TODO: set debug info like: lineno, fileno...
+            self << "@goto except"
             return

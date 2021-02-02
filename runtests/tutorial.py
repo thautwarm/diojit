@@ -82,10 +82,10 @@ jit.absint.In_Def.UserCodeDyn[hypot].show()
 print("After JITing".center(70, "="))
 
 callspec = jit.jit_spec_call_ir(hypot, jit.S(int), jit.S(int))
-for each in reversed(jit.absint.Out_Def.GenerateCache):
+for each in reversed(jit.absint.Out_Def.GenerateCache.values()):
     each.show()
 print("".center(70, "="))
 
-for each in jit.Out_Def.GenerateCache:
+for each in jit.Out_Def.GenerateCache.values():
     print(jit.codegen.julia.Codegen(each).get())
 
