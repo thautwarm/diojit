@@ -31,7 +31,7 @@ class Codegen:
         self.io.write("\n")
 
     def __matmul__(self, other):
-        self.io.write('\n')
+        self.io.write("\n")
         self.io.write(other)
         self.io.write("\n")
 
@@ -72,7 +72,8 @@ class Codegen:
         else:
             return f"@DIO_ChkExcAndDecRefSubCall({f}({args}))"
 
-    def get(self):
+    def get_jl_definitions(self):
+        self.io = StringIO()
         spec_info = self.out_def.spec
         with self.indent_inc():
             self.visit_many(self.out_def.instrs)
@@ -93,7 +94,6 @@ class Codegen:
         self << "    return DIO_Return"
         self << "end"
         self << f"DIO.DIO_ExceptCode(::typeof({spec_info.abs_jit_func})) = Py_NULL"
-        narg = len(self.out_def.params)
 
         doc_io = StringIO()
         self.out_def.show(lambda *args: print(*args, file=doc_io))
@@ -103,6 +103,12 @@ class Codegen:
             f"const DOC_{spec_info.abs_jit_func} = "
             f"Base.unsafe_convert(Cstring, {json.dumps(doc)})"
         )
+        return self.io.getvalue()
+
+    def get_py_interfaces(self):
+        self.io = StringIO()
+        narg = len(self.out_def.params)
+        spec_info = self.out_def.spec
         if narg == 0:
             self << (
                 f"CFunc_{spec_info.abs_jit_func}(_ :: PyPtr, ::PyPtr) = "
@@ -116,7 +122,7 @@ class Codegen:
                 f"const PyMeth_{spec_info.abs_jit_func} = PyMethodDef(\n"
                 f"    Base.unsafe_convert(Cstring, :{self.out_def.name}),\n"
                 f"    CFuncPtr_{spec_info.abs_jit_func},\n"
-                f"    METH_NOARGS,\n"
+                "    METH_NOARGS,\n"
                 f"    DOC_{spec_info.abs_jit_func}\n"
                 ")"
             )

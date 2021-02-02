@@ -1,9 +1,7 @@
 import subprocess
 import os
 import warnings
-import sys
 import ctypes
-import ntpath
 import posixpath
 import julia.libjulia as jl_libjulia
 from json import dumps
@@ -53,12 +51,34 @@ def mk_libjulia(julia="julia", **popen_kwargs):
 
     args = stdout.rstrip().split("\n")
 
-    return LibJulia.from_juliainfo(JuliaInfo(julia, *args))
+    libjl = LibJulia.from_juliainfo(JuliaInfo(julia, *args))
+    libjl.jl_string_ptr.restype = ctypes.c_char_p
+    libjl.jl_string_ptr.argtypes = [ctypes.c_void_p]
+    libjl.jl_call1.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    libjl.jl_call1.restype = ctypes.c_void_p
+    libjl.jl_eval_string.argtypes = [ctypes.c_char_p]
+    libjl.jl_eval_string.restype = ctypes.c_void_p
+    libjl.jl_stderr_stream.argtypes = []
+    libjl.jl_stderr_stream.restype = ctypes.c_void_p
+    libjl.jl_printf.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+    libjl.jl_printf.restype = ctypes.c_int
+    return libjl
+
+
+class JuliaException(Exception):
+    def __init__(self, msg):
+        self.msg = msg
+
+    def __repr__(self):
+        return self.msg
 
 
 def check_jl_err(libjl: LibJulia):
     if o := libjl.jl_exception_occurred():
-        raise EnvironmentError
+        msg = libjl.jl_string_ptr(
+            libjl.jl_call1(libjl.jl_eval_string(b"error2str"), o)
+        ).decode("utf-8")
+        raise JuliaException(msg)
 
 
 def startup():
@@ -66,8 +86,14 @@ def startup():
     libjl = mk_libjulia()
     libjl.init_julia()
     # DIO package already checked when getting libjulia
+    libjl.jl_eval_string(
+        b"function error2str(e)\n"
+        b"   sprint(showerror, e; context=:color=>true)\n"
+        b"end"
+    )
     libjl.jl_eval_string(b"using DIO")
     check_jl_err(libjl)
+
     libpython_path = posixpath.join(*find_libpython().split(os.sep))
     libjl.jl_eval_string(
         b"DIO.@setup(%s)" % dumps(libpython_path).encode("utf-8")
@@ -78,11 +104,15 @@ def startup():
     check_jl_err(libjl)
     libjl.jl_eval_string(b"println(Py_CallFunction)")
     check_jl_err(libjl)
-    a = libjl.jl_eval_string(
-        b"Py_CallFunction(@DIO_Obj(%s), @DIO_Obj(%s))"
-        % (Codegen.uint64(id(print)).encode(), Codegen.uint64(id(1)).encode())
-    )
-    check_jl_err(libjl)
+    # a = libjl.jl_eval_string(
+    #     b"Py_CallFunction(@DIO_Obj(%s), @DIO_Obj(%s), @DIO_Obj(%s))"
+    #     % (
+    #         Codegen.uint64(id(print)).encode(),
+    #         Codegen.uint64(id(1)).encode(),
+    #         Codegen.uint64(id(3)).encode(),
+    #     )
+    # )
+    # check_jl_err(libjl)
     return libjl
 
 
@@ -100,9 +130,22 @@ def as_py(res: ctypes.c_void_p):
 
 def code_gen():
     libjl = get_libjulia()
-    for intrin, out_def in GenerateCache:
+    interfaces = bytearray()
+    for out_def in GenerateCache.values():
         cg = Codegen(out_def)
-        libjl.jl_eval_string(cg.get().encode("utf-8"))
+        interfaces.extend(cg.get_py_interfaces().encode("utf-8"))
+        libjl.jl_eval_string(cg.get_jl_definitions().encode("utf-8"))
+        check_jl_err(libjl)
+    libjl.jl_eval_string(bytes(interfaces))
+    check_jl_err(libjl)
+
+    for intrin in GenerateCache:
+        v = libjl.jl_eval_string(
+            b"PyFunc_%s" % repr(intrin).encode("utf-8")
+        )
+        check_jl_err(libjl)
+        intrin._callback = as_py(v)
+    GenerateCache.clear()
 
 
 startup()

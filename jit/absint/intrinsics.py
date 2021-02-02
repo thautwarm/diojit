@@ -1,6 +1,7 @@
 from __future__ import annotations
 import sys
 import operator
+from typing import Callable, Optional
 
 __all__ = ["intrinsic", "Intrinsic"]
 
@@ -23,6 +24,7 @@ def _mk(name, bases, ns):
 
 
 class Intrinsic(metaclass=_mk):
+    _callback: Optional[Callable] = None
     _name: str
     J: object
 
@@ -34,7 +36,9 @@ class Intrinsic(metaclass=_mk):
         return f"{self._name}"
 
     def __eq__(self, other):
-        return isinstance(other, Intrinsic) and self._name is other._name
+        return (
+            isinstance(other, Intrinsic) and self._name is other._name
+        )
 
     def __hash__(self):
         return id(self._name)
