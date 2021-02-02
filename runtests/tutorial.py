@@ -87,5 +87,5 @@ for each in reversed(jit.absint.Out_Def.GenerateCache.values()):
 print("".center(70, "="))
 
 for each in jit.Out_Def.GenerateCache.values():
-    print(jit.codegen.julia.Codegen(each).get())
-
+    print(jit.codegen.julia.Codegen(each).get_jl_definitions())
+    print(jit.codegen.julia.Codegen(each).get_py_interfaces())

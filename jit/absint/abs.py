@@ -505,7 +505,7 @@ class Out_Def:
     start: str
     name: str
 
-    GenerateCache = OrderedDict()
+    GenerateCache = OrderedDict()  # type: dict[Intrinsic, Out_Def]
 
     def show(self, print=print):
         ret_types = self.spec.possibly_return_types
