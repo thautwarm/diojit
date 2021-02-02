@@ -23,8 +23,8 @@ def _mk(name, bases, ns):
 
 
 class Intrinsic(metaclass=_mk):
-    __slots__ = ["_name"]
     _name: str
+    J: object
 
     @property
     def name(self):
@@ -32,6 +32,12 @@ class Intrinsic(metaclass=_mk):
 
     def __repr__(self):
         return f"{self._name}"
+
+    def __eq__(self, other):
+        return isinstance(other, Intrinsic) and self._name is other._name
+
+    def __hash__(self):
+        return id(self._name)
 
     Py_TYPE: Intrinsic
 

@@ -17,7 +17,6 @@ from typing import (
     TYPE_CHECKING,
     cast,
 )
-from typing_extensions import Protocol, runtime_checkable
 from collections import defaultdict, OrderedDict
 from contextlib import contextmanager
 from functools import total_ordering
@@ -150,7 +149,9 @@ class S(Out_Callable, AbsVal):
     base: object
     params: Optional[tuple[NonD, ...]]
 
-    def __init__(self, base: object, params: Optional[tuple[NonD, ...]] = None):
+    def __init__(
+        self, base: object, params: Optional[tuple[NonD, ...]] = None
+    ):
         self.base = base
         self.params = params
 
@@ -293,9 +294,9 @@ class Shape:
     fields: dict[str, Union[AbsVal, types.FunctionType]]
     # some type has unique instance
     # None.__class__ has None only
-    instance: Callable[[tuple[NonD, ...]], Optional[AbsVal]] = dataclasses.field(
-        default=None
-    )
+    instance: Callable[
+        [tuple[NonD, ...]], Optional[AbsVal]
+    ] = dataclasses.field(default=None)
 
 
 # None: means No Shape
@@ -359,7 +360,9 @@ class In_Cond:
     otherwise: str
 
     def __repr__(self):
-        return f"if {self.test!r} then {self.then} else {self.otherwise}"
+        return (
+            f"if {self.test!r} then {self.then} else {self.otherwise}"
+        )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -416,7 +419,7 @@ class Out_Assign:
     target: D
     expr: Out_Expr
 
-    def show(self, prefix):
+    def show(self, prefix, print):
         print(f"{prefix}{self.target} = {self.expr!r}")
 
 
@@ -427,7 +430,7 @@ class Out_If:
     t: str
     f: str
 
-    def show(self, prefix):
+    def show(self, prefix, print):
         print(f"{prefix}if {self.test!r}")
         print(f"{prefix}then goto {self.t}")
         print(f"{prefix}else goto {self.f}")
@@ -438,18 +441,18 @@ class Out_TypeCase:
     obj: AbsVal
     cases: pyrsistent.PMap[AbsVal, tuple[Out_Instr, ...]]
 
-    def show(self, prefix):
+    def show(self, prefix, print):
         print(f"{prefix}case typeof {self.obj!r}")
         for t, xs in self.cases.items():
             print(f"{prefix}  {t!r} ->")
-            print_out(xs, prefix + "    ")
+            print_out(xs, prefix + "    ", print)
 
 
 @dataclasses.dataclass(frozen=True)
 class Out_Label:
     label: str
 
-    def show(self, prefix):
+    def show(self, prefix, print):
         print(f"label {self.label}:")
 
 
@@ -457,35 +460,41 @@ class Out_Label:
 class Out_Goto:
     label: str
 
-    def show(self, prefix):
+    def show(self, prefix, print):
         print(f"{prefix}goto {self.label}")
 
 
 @dataclasses.dataclass(frozen=True)
 class Out_Error:
-    def show(self, prefix):
-        return f"{prefix}error!"
+    def show(self, prefix, print):
+        print(f"{prefix}error!")
 
 
 @dataclasses.dataclass(frozen=True)
 class Out_Return:
     value: AbsVal
 
-    def show(self, prefix):
+    def show(self, prefix, print):
         print(f"{prefix}return {self.value!r}")
 
 
 Out_Instr = Union[
-    Out_Label, Out_TypeCase, Out_If, Out_Assign, Out_Return, Out_Goto, Out_Error
+    Out_Label,
+    Out_TypeCase,
+    Out_If,
+    Out_Assign,
+    Out_Return,
+    Out_Goto,
+    Out_Error,
 ]
 
 
 CallRecord = tuple[FunctionType, tuple[AbsVal, ...]]
 
 
-def print_out(xs: Iterable[Out_Instr], prefix):
+def print_out(xs: Iterable[Out_Instr], prefix, print):
     for each in xs:
-        each.show(prefix)
+        each.show(prefix, print)
 
 
 @dataclasses.dataclass
@@ -494,10 +503,11 @@ class Out_Def:
     params: tuple[AbsVal, ...]
     instrs: tuple[Out_Instr, ...]
     start: str
+    name: str
 
-    GenerateCache = []
+    GenerateCache = OrderedDict()
 
-    def show(self):
+    def show(self, print=print):
         ret_types = self.spec.possibly_return_types
         name = self.spec.abs_jit_func
         instance = self.spec.instance
@@ -510,7 +520,7 @@ class Out_Def:
         )
         # print(f"  START from {self.start}")
         for i in self.instrs:
-            i.show("  ")
+            i.show("  ", print)
         print("}")
 
 
@@ -775,7 +785,9 @@ class Judge:
                 rhs = e_call
                 if instance:
                     rhs = instance
-                local = local.up_store(local.store.set(hd.target.i, rhs))
+                local = local.up_store(
+                    local.store.set(hd.target.i, rhs)
+                )
                 self.stmt(local, xs, index + 1)
                 return
 
@@ -792,7 +804,9 @@ class Judge:
                 _, a_spec = judge_coerce(a_spec, a_t)  # handle instance
                 valid_value(a_spec)
                 local = incref(local, a_spec)
-                local = local.up_store(local.store.set(hd.target.i, a_spec))
+                local = local.up_store(
+                    local.store.set(hd.target.i, a_spec)
+                )
                 self.stmt(local, xs, index + 1)
                 return
             # 3. CALL happens, union-typed;
@@ -817,7 +831,9 @@ class Judge:
                     self.stmt(local_i, xs, index + 1)
             self << Out_TypeCase(
                 a_union,
-                pyrsistent.pmap({case: tuple(code) for case, code in cases}),
+                pyrsistent.pmap(
+                    {case: tuple(code) for case, code in cases}
+                ),
             )
 
     def no_spec(
@@ -838,7 +854,9 @@ class Judge:
                 (Top,),
             )
 
-    def spec(self, a_sub: AbsVal, attr: str, a_args: list[AbsVal]) -> CallSpec:
+    def spec(
+        self, a_sub: AbsVal, attr: str, a_args: list[AbsVal]
+    ) -> CallSpec:
         assert isinstance(attr, str)
         a_sub = valid_value(a_sub)
         if attr == "__call__":
@@ -993,9 +1011,12 @@ def ufunc_spec(self, a_func: AbsVal, *arguments: AbsVal) -> CallSpec:
             instance = None
         if isinstance(instance, D):
             instance = None
-        spec_info = JITSpecInfo(instance, S(intrinsic(jit_func_name)), ret_types)
-        out_def = Out_Def(spec_info, parameters, tuple(instrs), gen_start)
-        Out_Def.GenerateCache.append(out_def)
+        intrin = intrinsic(jit_func_name)
+        spec_info = JITSpecInfo(instance, S(intrin), ret_types)
+        out_def = Out_Def(
+            spec_info, parameters, tuple(instrs), gen_start, in_def.name
+        )
+        Out_Def.GenerateCache[intrin] = out_def
         e_call = spec_info.abs_jit_func(*arguments)
 
     return CallSpec(instance, e_call, ret_types)
@@ -1014,7 +1035,9 @@ def judge_resolve(shape: Shape, attr: str):
     if not isinstance(shape.name, type):
         return None
     for base in shape.name.__bases__:
-        if (shape := ShapeSystem.get(base)) and (meth := shape.fields.get(attr)):
+        if (shape := ShapeSystem.get(base)) and (
+            meth := shape.fields.get(attr)
+        ):
             return meth
 
     return None
