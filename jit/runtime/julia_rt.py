@@ -1,15 +1,17 @@
 import subprocess
 import os
+import signal
 import warnings
 import ctypes
 import posixpath
+import importlib
 import julia.libjulia as jl_libjulia
 from json import dumps
 from julia.libjulia import LibJulia
 from julia.juliainfo import JuliaInfo
 from julia.find_libpython import find_libpython
 from ..absint.abs import Out_Def as _Out_Def
-from ..codegen.julia import Codegen
+from ..codegen.julia import Codegen, u64o
 
 GenerateCache = _Out_Def.GenerateCache
 
@@ -19,6 +21,26 @@ def get_libjulia():
     if not libjl:
         libjl = startup()
     return libjl
+
+
+class RichCallSubprocessError(subprocess.CalledProcessError):
+    def __str__(self):
+        if self.returncode and self.returncode < 0:
+            try:
+                return "Command '%s' died with %r." % (
+                    self.cmd,
+                    signal.Signals(-self.returncode),
+                )
+            except ValueError:
+                return "Command '%s' died with unknown signal %d." % (
+                    self.cmd,
+                    -self.returncode,
+                )
+        else:
+            return (
+                "Command '%s' returned non-zero exit status %d: %s"
+                % (self.cmd, self.returncode, self.stderr)
+            )
 
 
 def mk_libjulia(julia="julia", **popen_kwargs):
@@ -41,7 +63,7 @@ def mk_libjulia(julia="julia", **popen_kwargs):
     stdout, stderr = proc.communicate()
     retcode = proc.wait()
     if retcode != 0:
-        raise subprocess.CalledProcessError(
+        raise RichCallSubprocessError(
             retcode, [julia, "-e", "..."], stdout, stderr
         )
 
@@ -102,7 +124,25 @@ def startup():
     check_jl_err(libjl)
     libjl.jl_eval_string(b'println("setup correctly")')
     check_jl_err(libjl)
-    libjl.jl_eval_string(b"println(Py_CallFunction)")
+
+    libjl.jl_eval_string(
+        str.encode(
+            f"const PyO = PyOType("
+            f"int = @DIO_Obj({u64o(int)}),"
+            f"float = @DIO_Obj({u64o(float)}),"
+            f"str = @DIO_Obj({u64o(str)}),"
+            f"type = @DIO_Obj({u64o(type)}),"
+            f"None = @DIO_Obj({u64o(None)}),"
+            f"complex = @DIO_Obj({u64o(complex)}),"
+            f"tuple = @DIO_Obj({u64o(tuple)}),"
+            f"list = @DIO_Obj({u64o(list)}),"
+            f"set = @DIO_Obj({u64o(set)}),"
+            f"dict = @DIO_Obj({u64o(dict)}),"
+            f"import_module = @DIO_Obj({u64o(importlib.import_module)}),"
+            f")",
+            encoding="utf-8",
+        )
+    )
     check_jl_err(libjl)
     # a = libjl.jl_eval_string(
     #     b"Py_CallFunction(@DIO_Obj(%s), @DIO_Obj(%s), @DIO_Obj(%s))"
@@ -125,17 +165,24 @@ def as_py(res: ctypes.c_void_p):
     if res == 0:
         return None
     pyobj = libjl.jl_unbox_voidpointer(res)
+    check_jl_err(libjl)
     return pyobj
 
 
-def code_gen():
+def code_gen(print_jl=None):
     libjl = get_libjulia()
     interfaces = bytearray()
     for out_def in GenerateCache.values():
         cg = Codegen(out_def)
         interfaces.extend(cg.get_py_interfaces().encode("utf-8"))
-        libjl.jl_eval_string(cg.get_jl_definitions().encode("utf-8"))
+        definition = cg.get_jl_definitions()
+        if print_jl:
+            print_jl(definition)
+        definition = definition.encode("utf-8")
+        libjl.jl_eval_string(definition)
         check_jl_err(libjl)
+    if print_jl:
+        print_jl(interfaces.decode("utf-8"))
     libjl.jl_eval_string(bytes(interfaces))
     check_jl_err(libjl)
 
@@ -145,6 +192,7 @@ def code_gen():
         )
         check_jl_err(libjl)
         intrin._callback = as_py(v)
+
     GenerateCache.clear()
 
 
