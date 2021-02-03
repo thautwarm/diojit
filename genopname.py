@@ -2,7 +2,7 @@ import opcode
 import os
 import dis
 
-dir = "jit"
+dir = "diojit"
 with open(os.path.join(dir, "stack2reg", "opcodes.py"), "w") as f:
     f.write("import opcode\n")
     f.write("UNKNOWN_INSTR = object()\n")

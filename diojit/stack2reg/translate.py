@@ -5,7 +5,7 @@ import operator
 from contextlib import contextmanager
 from . import opcodes
 from . import cflags
-from jit.absint import *
+from diojit.absint import *
 
 __all__ = ["translate"]
 

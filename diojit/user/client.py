@@ -77,7 +77,7 @@ def jit_spec_call(
 ):
     global _code_gen
     if not _code_gen:
-        from jit.runtime.julia_rt import code_gen
+        from diojit.runtime.julia_rt import code_gen
 
         _code_gen = code_gen
 
@@ -95,7 +95,7 @@ def jit_spec_call(
     jit_f = spec.e_call.func.base
     assert isinstance(jit_f, absint.Intrinsic)
     if print_dio_ir:
-        from jit.runtime.julia_rt import GenerateCache
+        from diojit.runtime.julia_rt import GenerateCache
 
         for each in GenerateCache.values():
             each.show(print_dio_ir)

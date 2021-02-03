@@ -1,1 +1,1 @@
-import jit.runtime.julia_rt
+import diojit.runtime.julia_rt

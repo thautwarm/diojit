@@ -1,18 +1,57 @@
 ## DIO-JIT: General-purpose Python JIT
 
-You should firstly install [`DIO.jl`](https://github.com/thautwarm/DIO.jl) locally.
+
+Important: DIO-JIT now works for Python >= 3.9.
+
+<details><summary>Install Instructions</summary>
+<p>
+
+<details><summary>Step 1: Install Julia as an in-process native code compiler for DIO-JIT</summary>
+<p>
+
+- [julialang.org](https://julialang.org/downloads) (recommended for Windows users)
+- [jill.py](https://github.com/johnnychen94/jill.py):
+    
+    `pip install jill && jill install 1.6 --upstream Official`
+
+- [jill](https://github.com/abelsiqueira/jill) (Mac and Linux):
+    
+    `bash -ci "$(curl -fsSL https://raw.githubusercontent.com/abelsiqueira/jill/master/jill.sh)"`
+</p>
+</details>
+
+<details><summary>Step 2: Install DIO.jl in Julia</summary>
+<p>
+
+Type `julia` and open the REPL, then
 
 ```julia
 julia>
 # press ]
 pkg> add https://github.com/thautwarm/DIO.jl
+# press backspace
+julia> using DIO # precompile
 ```
+
+</p>
+</details>
+
+<details><summary>Step 3: Install Python Package</summary>
+<p>
+
+`pip install diojit`
+
+</p>
+</details>
+
+</p>
+</details>
 
 Usage from Python side is quite similar to that from Numba.
 ```python
-import jit
+import diojit
 from math import sqrt
-@jit.jit(fixed_references=["sqrt", "str", "int", "isinstance"])
+@diojit.jit(fixed_references=["sqrt", "str", "int", "isinstance"])
 def hypot(x, y):
     if isinstance(x, str):
         x = int(x)
@@ -22,7 +61,7 @@ def hypot(x, y):
 
     return sqrt(x ** 2 + y ** 2)
 
-specialized_hypot = jit.jit_spec_call(hypot, jit.oftype(int), jit.oftype(int))
+specialized_hypot = diojit.jit_spec_call(hypot, diojit.oftype(int), diojit.oftype(int))
 specialized_hypot(1, 2) # 30% faster than CPython
 ```
 
@@ -37,7 +76,7 @@ We're able to optimise anything!
 1. Python Side:
 
 ```python
-import jit
+import diojit as jit
 import timeit
 jit.create_shape(list, oop=True)
 @jit.register(list, attr="append")
@@ -66,16 +105,16 @@ print("test jit func, [1] append 3 for 3 times:", xs)
 xs = []
 print("pure py func time:", timeit.timeit("f(xs, 1)", globals=dict(f=append3, xs=xs), number=10000000),)
 xs = []
-print("jit func time:", timeit.timeit("f(xs, 1)", globals=dict(f=jit_append3, xs=xs), number=10000000),)
+print("diojit func time:", timeit.timeit("f(xs, 1)", globals=dict(f=jit_append3, xs=xs), number=10000000),)
 ```
 
 2. Julia Side:
-    - https://github.com/thautwarm/DIO.jl/blob/397e6e3cb2349e9c685d4fb6319ff06498c43d88/src/dynamic.jl#L46
-    - https://github.com/thautwarm/DIO.jl/blob/397e6e3cb2349e9c685d4fb6319ff06498c43d88/src/dynamic.jl#L77-L81
+    - https://github.com/thautwarm/DIO.jl/blob/6e2258d19fe87f81b3f78589ec28209eb24ee55a/src/dynamic.jl#L46
+    - https://github.com/thautwarm/DIO.jl/blob/6e2258d19fe87f81b3f78589ec28209eb24ee55a/src/dynamic.jl#L77-L81
 
 You can either do step 2) at Python side(for users other than DIO-JIT developers):
 ```python
-import jit
+import diojit as jit
 jl_implemented_intrinsic = b"""
 function PyList_Append(lst::Ptr, elt::PyPtr)
     ccall(PyAPI.PyList_Append, Cint, (PyPtr, PyPtr), lst, elt) === Cint(-1)
