@@ -17,6 +17,18 @@ from contextlib import contextmanager
 import json
 
 
+def u64o(o: object):
+    """
+    uint64 address from object
+    """
+    return Codegen.uint64(id(o))
+
+
+def u64i(i: int):
+    """uint64 from integer"""
+    return Codegen.uint64(i)
+
+
 class Codegen:
     def __init__(self, out_def: Out_Def):
         self.out_def = out_def
@@ -88,7 +100,7 @@ class Codegen:
         self @ "@label except"
         # TODO: add traceback
         self << "    DIO_Return = Py_NULL"
-        self @ "@label return"
+        self @ "@label ret"
         for var in sorted_vars:
             self << f"    DIO_DecRef({var})"
         self << "    return DIO_Return"
@@ -165,7 +177,7 @@ class Codegen:
                 ")"
             )
         self << (
-            f"const PyFunc_{spec_info.abs_jit_func} = PyCFunction_New(PyMeth_{spec_info.abs_jit_func}, Py_NULL)"
+            f"const PyFunc_{spec_info.abs_jit_func} = PyCFunction_New(pointer_from_objref(PyMeth_{spec_info.abs_jit_func}), Py_NULL)"
         )
         return self.io.getvalue()
 

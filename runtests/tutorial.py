@@ -28,7 +28,9 @@ def spec_isinstance(self: jit.Judge, l: jit.AbsVal, r: jit.AbsVal):
         and isinstance(r.base, type)
     ):
         const = l.type == r or l.type.base in r.base.__bases__
-        return jit.CallSpec(jit.S(const), jit.S(const), tuple({jit.Values.A_Bool}))
+        return jit.CallSpec(
+            jit.S(const), jit.S(const), tuple({jit.Values.A_Bool})
+        )
     return NotImplemented
 
 
@@ -56,6 +58,8 @@ def spec_add(self: jit.Judge, l: jit.AbsVal, r: jit.AbsVal):
                 constant_result, py_int_add_int(l, r), return_types
             )
     return NotImplemented
+
+
 #
 #
 # @jit.register(sqrt, create_shape=True)
@@ -81,11 +85,5 @@ print("Direct Translation From Stack Instructions".center(70, "="))
 jit.absint.In_Def.UserCodeDyn[hypot].show()
 print("After JITing".center(70, "="))
 
-callspec = jit.jit_spec_call_ir(hypot, jit.S(int), jit.S(int))
-for each in reversed(jit.absint.Out_Def.GenerateCache.values()):
-    each.show()
-print("".center(70, "="))
-
-for each in jit.Out_Def.GenerateCache.values():
-    print(jit.codegen.julia.Codegen(each).get_jl_definitions())
-    print(jit.codegen.julia.Codegen(each).get_py_interfaces())
+call = jit.jit_spec_call(hypot, jit.S(int), jit.S(int), print_jl=print)
+call(1, 2)
