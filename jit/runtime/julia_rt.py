@@ -116,34 +116,31 @@ def startup():
     libjl.jl_eval_string(b"using DIO")
     check_jl_err(libjl)
 
+    libjl.jl_eval_string(str.encode(f"const PyO = PyOType("
+                                    f"int = @DIO_Obj({u64o(int)}),"
+                                    f"float = @DIO_Obj({u64o(float)}),"
+                                    f"str = @DIO_Obj({u64o(str)}),"
+                                    f"type = @DIO_Obj({u64o(type)}),"
+                                    f"None = @DIO_Obj({u64o(None)}),"
+                                    f"complex = @DIO_Obj({u64o(complex)}),"
+                                    f"tuple = @DIO_Obj({u64o(tuple)}),"
+                                    f"list = @DIO_Obj({u64o(list)}),"
+                                    f"set = @DIO_Obj({u64o(set)}),"
+                                    f"dict = @DIO_Obj({u64o(dict)}),"
+                                    f"import_module = @DIO_Obj({u64o(importlib.import_module)}),"
+                                    f")", encoding="utf-8", ))
+    check_jl_err(libjl)
+
     libpython_path = posixpath.join(*find_libpython().split(os.sep))
     libjl.jl_eval_string(
         b"DIO.@setup(%s)" % dumps(libpython_path).encode("utf-8")
     )
+    check_jl_err(libjl)
     libjl.jl_eval_string(b"printerror(x) = println(showerror(x))")
     check_jl_err(libjl)
     libjl.jl_eval_string(b'println("setup correctly")')
     check_jl_err(libjl)
 
-    libjl.jl_eval_string(
-        str.encode(
-            f"const PyO = PyOType("
-            f"int = @DIO_Obj({u64o(int)}),"
-            f"float = @DIO_Obj({u64o(float)}),"
-            f"str = @DIO_Obj({u64o(str)}),"
-            f"type = @DIO_Obj({u64o(type)}),"
-            f"None = @DIO_Obj({u64o(None)}),"
-            f"complex = @DIO_Obj({u64o(complex)}),"
-            f"tuple = @DIO_Obj({u64o(tuple)}),"
-            f"list = @DIO_Obj({u64o(list)}),"
-            f"set = @DIO_Obj({u64o(set)}),"
-            f"dict = @DIO_Obj({u64o(dict)}),"
-            f"import_module = @DIO_Obj({u64o(importlib.import_module)}),"
-            f")",
-            encoding="utf-8",
-        )
-    )
-    check_jl_err(libjl)
     # a = libjl.jl_eval_string(
     #     b"Py_CallFunction(@DIO_Obj(%s), @DIO_Obj(%s), @DIO_Obj(%s))"
     #     % (
