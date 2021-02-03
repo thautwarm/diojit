@@ -3,6 +3,14 @@ from ..stack2reg.translate import translate
 from typing import Iterable
 import dataclasses
 
+__all__ = [
+    "jit",
+    "jit_spec_call",
+    "jit_spec_call_ir",
+    "oftype",
+    "ofval",
+]
+
 
 def jit(
     func: absint.FunctionType = None,
@@ -65,7 +73,7 @@ def jit_spec_call(
     attr="__call__",
     glob=None,
     print_jl=None,
-    print_dio_ir=None
+    print_dio_ir=None,
 ):
     global _code_gen
     if not _code_gen:
@@ -94,3 +102,17 @@ def jit_spec_call(
 
     _code_gen(print_jl)
     return getattr(jit_f, "_callback")
+
+
+def oftype(t: object):
+    """
+    create an abstract value from type object
+    """
+    abs = absint.from_runtime(t)
+    if not isinstance(abs, absint.D):
+        return abs
+    raise TypeError(f"{t} is not a type")
+
+
+def ofval(o: object):
+    return Val(o)

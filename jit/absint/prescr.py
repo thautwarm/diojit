@@ -102,15 +102,18 @@ def py_load_global(self: Judge, a_str: AbsVal) -> CallSpec:
 create_shape(bool, oop=True)
 
 
-@register(bool)
+@register(bool, attr="__call__")
 def py_call_bool_type(self: Judge, *args: AbsVal):
     if not args:
-        constant_return = S(True)
+        # bool() = False
+        constant_return = S(False)
         return CallSpec(
             constant_return, constant_return, (Values.A_Bool,)
         )
     if len(args) != 1:
+        # bool(a, b, c) = False
         return NotImplemented
+    # bool(a)
     arg = args[0]
     if isinstance(arg.type, S) and issubclass(arg.type.base, bool):
         constant_return = isinstance(arg, S) and arg or None

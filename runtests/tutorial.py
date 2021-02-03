@@ -98,8 +98,8 @@ jit_func_name = repr(
 
 hypot_spec = jit.jit_spec_call(
     hypot,
-    jit.S(int),
-    jit.S(int),  # print_jl=print, print_dio_ir=print
+    jit.oftype(int),
+    jit.oftype(2)  # print_jl=print, print_dio_ir=print
 )
 # #
 # libjl = jit.runtime.julia_rt.get_libjulia()
