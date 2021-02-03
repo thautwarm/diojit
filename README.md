@@ -143,13 +143,14 @@ We prefer compiling JITed code with LLVM, and **Julia is quite a killer tool for
 ## Current Limitations
 
 1. Support for `*varargs` and `**kwargs` are not ready: we do can immediately support them with very tiny JIT performance gain, but considering backward compatibility we decide not to do this.
+
 2. Exception handling is not yet supported inside JIT functions.
     
     <details><summary>Why?</summary>
     <p>
     
-    A callsite in any JIT function can raise an exception. It will not be handled by JIT functions, instead, it is lifted up to the root call, which is a pure Python call.
-
+    We haven't implemented the translation from exception handling bytecode to untyped DIO IR (`jit.absint.abs.In_Stmt`).
+    
     </p>
     </details>
     
@@ -158,18 +159,21 @@ We prefer compiling JITed code with LLVM, and **Julia is quite a killer tool for
     
     Yes.
 
-    It will be done when we have efforts on translating CPython bytecode about exception handling into untyped DIO IR(`jit.absint.abs.In_Stmt`).
-    This will be finished simultaneously with the support for `for` loop.
+    In fact, now a callsite in any JIT function can raise an exception. It will not be handled by JIT functions, instead, it is lifted up to the root call, which is a pure Python call.
+
+    Exception handling will be supported when we have efforts on translating CPython bytecode about exception handling into untyped DIO IR (`jit.absint.abs.In_Stmt`).
+
+    P.S: This will be finished simultaneously with the support for `for` loop.
 
     </p>
     </details>
 
-3. Support `for` loop is missing.
+3. Support for `for` loop is missing.
 
     <details><summary>Why?</summary>
     <p>
 
-    Firstly, in CPython, `for` loop relies on exception handling.
+    Firstly, in CPython, `for` loop relies on exception handling, which is not supported yet.
 
     Secondly, we're considering a fast path for `for` loop, maybe proposing a `__citer__` protocol for faster iteration for JIT functions, which requires communications with Python developers.
 
