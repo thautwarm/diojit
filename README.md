@@ -1,7 +1,7 @@
 ## DIO-JIT: General-purpose Python JIT
 
 
-Important: DIO-JIT now works for Python >= 3.9.
+Important: DIO-JIT now works for Python >= 3.8.
 
 <details><summary>Install Instructions</summary>
 <p>
