@@ -3,6 +3,8 @@ from .intrinsics import *
 from mypy_extensions import VarArg
 import warnings
 import typing
+import operator
+import math
 
 _undef = object()
 
@@ -123,3 +125,49 @@ def py_call_bool_type(self: Judge, *args: AbsVal):
         S(intrinsic("Py_CallBoolIfNecessary"))(arg),
         (Values.A_Bool,),
     )
+
+
+@register(isinstance, create_shape=True)
+def spec_isinstance(self: Judge, l: AbsVal, r: AbsVal):
+    if (
+        isinstance(l.type, S)
+        and isinstance(r, S)
+        and isinstance(r.base, type)
+    ):
+        const = l.type == r or l.type.base in r.base.__bases__
+        return CallSpec(S(const), S(const), tuple({Values.A_Bool}))
+    return NotImplemented
+
+
+@register(operator.__pow__, create_shape=True)
+def spec_pow(self: Judge, l: AbsVal, r: AbsVal):
+    if l.type == Values.A_Int:
+        if r.type == Values.A_Int:
+            py_int_power_int = S(intrinsic("Py_IntPowInt"))
+            return_types = tuple({Values.A_Int})
+            constant_result = None  # no constant result
+            return CallSpec(
+                constant_result, py_int_power_int(l, r), return_types
+            )
+    return NotImplemented
+
+
+@register(operator.__add__, create_shape=True)
+def spec_add(self: Judge, l: AbsVal, r: AbsVal):
+    if l.type == Values.A_Int:
+        if r.type == Values.A_Int:
+            py_int_add_int = S(intrinsic("Py_IntAddInt"))
+            return_types = tuple({Values.A_Int})
+            constant_result = None  # no constant result
+            return CallSpec(
+                constant_result, py_int_add_int(l, r), return_types
+            )
+    return NotImplemented
+
+
+@register(math.sqrt, create_shape=True)
+def spec_sqrt(self: Judge, a: AbsVal):
+    if a.type == Values.A_Int:
+        int_sqrt = S(intrinsic("Py_IntSqrt"))
+        return CallSpec(None, int_sqrt(a), tuple({Values.A_Float}))
+    return NotImplemented

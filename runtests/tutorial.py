@@ -21,57 +21,6 @@ GenerateCache = jit.Out_Def.GenerateCache
 # print("".center(100, "="))
 
 #
-@jit.register(isinstance, create_shape=True)
-def spec_isinstance(self: jit.Judge, l: jit.AbsVal, r: jit.AbsVal):
-    if (
-        isinstance(l.type, jit.S)
-        and isinstance(r, jit.S)
-        and isinstance(r.base, type)
-    ):
-        const = l.type == r or l.type.base in r.base.__bases__
-        return jit.CallSpec(
-            jit.S(const), jit.S(const), tuple({jit.Values.A_Bool})
-        )
-    return NotImplemented
-
-
-@jit.register(operator.__pow__, create_shape=True)
-def spec_pow(self: jit.Judge, l: jit.AbsVal, r: jit.AbsVal):
-    if l.type == jit.Values.A_Int:
-        if r.type == jit.Values.A_Int:
-            py_int_power_int = jit.S(jit.intrinsic("Py_IntPowInt"))
-            return_types = tuple({jit.Values.A_Int})
-            constant_result = None  # no constant result
-            return jit.CallSpec(
-                constant_result, py_int_power_int(l, r), return_types
-            )
-    return NotImplemented
-
-
-#
-@jit.register(operator.__add__, create_shape=True)
-def spec_add(self: jit.Judge, l: jit.AbsVal, r: jit.AbsVal):
-    if l.type == jit.Values.A_Int:
-        if r.type == jit.Values.A_Int:
-            py_int_add_int = jit.S(jit.intrinsic("Py_IntAddInt"))
-            return_types = tuple({jit.Values.A_Int})
-            constant_result = None  # no constant result
-            return jit.CallSpec(
-                constant_result, py_int_add_int(l, r), return_types
-            )
-    return NotImplemented
-
-
-#
-#
-@jit.register(sqrt, create_shape=True)
-def spec_sqrt(self: jit.Judge, a: jit.AbsVal):
-    if a.type == jit.Values.A_Int:
-        int_sqrt = jit.S(jit.intrinsic("Py_IntSqrt"))
-        return jit.CallSpec(
-            None, int_sqrt(a), tuple({jit.Values.A_Float})
-        )
-    return NotImplemented
 
 
 @jit.jit(fixed_references=["sqrt", "str", "int", "isinstance"])
@@ -99,7 +48,7 @@ jit_func_name = repr(
 hypot_spec = jit.jit_spec_call(
     hypot,
     jit.oftype(int),
-    jit.oftype(2)  # print_jl=print, print_dio_ir=print
+    jit.oftype(int),  # print_jl=print, print_dio_ir=print
 )
 # #
 # libjl = jit.runtime.julia_rt.get_libjulia()
@@ -117,4 +66,45 @@ print(
     timeit.timeit(
         "f(1, 2)", number=1000000, globals=dict(f=hypot_spec)
     ),
+)
+
+jit.create_shape(list, oop=True)
+
+
+@jit.register(list, attr="append")
+def list_append_analysis(self: jit.Judge, *args: jit.AbsVal):
+    if len(args) != 2:
+        # rollback to CPython's default code
+        return NotImplemented
+    lst, elt = args
+
+    return jit.CallSpec(
+        instance=None,  # return value is not static
+        e_call=jit.S(jit.intrinsic("PyList_Append"))(lst, elt),
+        possibly_return_types=tuple({jit.S(type(None))}),
+    )
+
+
+@jit.jit
+def append3(xs, x):
+    xs.append(x)
+    xs.append(x)
+    xs.append(x)
+
+
+# jit.In_Def.UserCodeDyn[append3].show()
+jit_append3 = jit.jit_spec_call(append3, jit.oftype(list), jit.Top)
+xs = [1]
+jit_append3(xs, 3)
+print("test jit func, [1] append 3 for 3 times:", xs)
+
+xs = []
+print(
+    "pure py func time:",
+    timeit.timeit("f(xs, 1)", globals=dict(f=append3, xs=xs), number=10000000),
+)
+xs = []
+print(
+    "jit func time:",
+    timeit.timeit("f(xs, 1)", globals=dict(f=jit_append3, xs=xs), number=10000000),
 )
