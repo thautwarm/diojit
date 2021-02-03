@@ -3,8 +3,10 @@ import os
 import signal
 import warnings
 import ctypes
+import sys
 import posixpath
 import importlib
+import json
 import julia.libjulia as jl_libjulia
 from json import dumps
 from julia.libjulia import LibJulia
@@ -116,20 +118,26 @@ def startup():
     libjl.jl_eval_string(b"using DIO")
     check_jl_err(libjl)
 
-    libjl.jl_eval_string(str.encode(f"const PyO = PyOType("
-                                    f"bool = @DIO_Obj({u64o(bool)}),"
-                                    f"int = @DIO_Obj({u64o(int)}),"
-                                    f"float = @DIO_Obj({u64o(float)}),"
-                                    f"str = @DIO_Obj({u64o(str)}),"
-                                    f"type = @DIO_Obj({u64o(type)}),"
-                                    f"None = @DIO_Obj({u64o(None)}),"
-                                    f"complex = @DIO_Obj({u64o(complex)}),"
-                                    f"tuple = @DIO_Obj({u64o(tuple)}),"
-                                    f"list = @DIO_Obj({u64o(list)}),"
-                                    f"set = @DIO_Obj({u64o(set)}),"
-                                    f"dict = @DIO_Obj({u64o(dict)}),"
-                                    f"import_module = @DIO_Obj({u64o(importlib.import_module)}),"
-                                    f")", encoding="utf-8", ))
+    libjl.jl_eval_string(
+        str.encode(
+            f"const PyO = PyOType("
+            f"PY_VERSION = Tuple({json.dumps(sys.version_info)}),"
+            f"bool = @DIO_Obj({u64o(bool)}),"
+            f"int = @DIO_Obj({u64o(int)}),"
+            f"float = @DIO_Obj({u64o(float)}),"
+            f"str = @DIO_Obj({u64o(str)}),"
+            f"type = @DIO_Obj({u64o(type)}),"
+            f"None = @DIO_Obj({u64o(None)}),"
+            f"complex = @DIO_Obj({u64o(complex)}),"
+            f"tuple = @DIO_Obj({u64o(tuple)}),"
+            f"list = @DIO_Obj({u64o(list)}),"
+            f"set = @DIO_Obj({u64o(set)}),"
+            f"dict = @DIO_Obj({u64o(dict)}),"
+            f"import_module = @DIO_Obj({u64o(importlib.import_module)}),"
+            f")",
+            encoding="utf-8",
+        )
+    )
     check_jl_err(libjl)
 
     libpython_path = posixpath.join(*find_libpython().split(os.sep))

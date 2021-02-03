@@ -1,3 +1,4 @@
+from __future__ import annotations
 import typing as _t
 import dis
 import types as _types
@@ -37,7 +38,7 @@ BIN_OPS: dict[int, FunctionType] = {
 }
 
 
-CMP_OPS: dict[str, FunctionType] = _t.cast(dict[str, FunctionType], {
+CMP_OPS: dict[str, FunctionType] = _t.cast(_t.Dict[str, FunctionType], {
     "<": operator.__lt__,
     ">": operator.__gt__,
     "<=": operator.__le__,

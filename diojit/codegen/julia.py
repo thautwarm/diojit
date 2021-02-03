@@ -9,6 +9,7 @@ why julia?
 
 3. I love Julia
 """
+from __future__ import annotations
 from ..absint import *
 from io import StringIO
 from typing import Union

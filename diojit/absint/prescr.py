@@ -1,10 +1,12 @@
+from __future__ import annotations
 from .abs import *
 from .intrinsics import *
-from mypy_extensions import VarArg
 import warnings
 import typing
 import operator
 import math
+if typing.TYPE_CHECKING:
+    from mypy_extensions import VarArg
 
 _undef = object()
 

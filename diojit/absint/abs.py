@@ -374,7 +374,7 @@ class In_Return:
 
 
 In_Stmt = Union[In_Cond, In_Goto, In_Move, In_Return, In_Bind]
-In_Blocks = dict[str, list[In_Stmt]]
+In_Blocks = 'dict[str, list[In_Stmt]]'
 
 
 def print_in(b: In_Blocks, print=print):
@@ -489,7 +489,7 @@ Out_Instr = Union[
 ]
 
 
-CallRecord = tuple[FunctionType, tuple[AbsVal, ...]]
+CallRecord = 'tuple[FunctionType, tuple[AbsVal, ...]]'
 
 
 def print_out(xs: Iterable[Out_Instr], prefix, print):

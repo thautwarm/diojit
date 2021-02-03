@@ -1,3 +1,4 @@
+from __future__ import annotations
 from .. import absint
 from ..stack2reg.translate import translate
 from typing import Iterable
