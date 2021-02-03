@@ -96,17 +96,18 @@ xs = [1]
 jit_append3(xs, 3)
 print("test jit func, [1] append 3 for 3 times:", xs)
 
-xs = []
-print(
-    "pure py func time:",
-    timeit.timeit(
-        "f(xs, 1)", globals=dict(f=append3, xs=xs), number=10000000
-    ),
-)
+
 xs = []
 print(
     "jit func time:",
     timeit.timeit(
         "f(xs, 1)", globals=dict(f=jit_append3, xs=xs), number=10000000
+    ),
+)
+xs = []
+print(
+    "pure py func time:",
+    timeit.timeit(
+        "f(xs, 1)", globals=dict(f=append3, xs=xs), number=10000000
     ),
 )

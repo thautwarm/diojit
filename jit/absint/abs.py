@@ -1,8 +1,8 @@
 """
-<abs> ::= D_i^t
-NonD:    S_o^ [<NonD>*]
-      |  Top
-      |  Bot
+<abs> ::= D_i^t | NonD
+NonD  ::= S_o^ [<NonD>*]
+      |   Top
+      |   Bot
 """
 
 from __future__ import annotations
