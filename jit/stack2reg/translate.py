@@ -241,10 +241,10 @@ class PyC:
                 self.codegen(In_Cond(tos, l2, l1))
                 return
             elif x.opcode is opcodes.LOAD_METHOD:
-                self.push(x.argval)
+                self.push(S(x.argval))
             elif x.opcode is opcodes.LOAD_ATTR:
                 tos = self.pop()
-                self.call(S(Intrinsic.Py_LoadAttr), tos, x.argval)
+                self.call(S(Intrinsic.Py_LoadAttr), tos, S(x.argval))
             elif x.opcode is opcodes.CALL_METHOD:
                 args = self.get_nargs(x.argval)
                 attr = self.pop()
