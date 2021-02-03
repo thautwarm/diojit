@@ -67,9 +67,10 @@ class Codegen:
         if isinstance(v, S):
             base = v.base
             if isinstance(base, Intrinsic):
-                return repr(base)
+                a = repr(base)
+                return a
             # get object from address
-            return f"@DIO_Obj({self.uint64(id(v.base))})"
+            return f"@DIO_Obj({self.uint64(id(v.base))}) #= {repr(v.base).replace('=#', '//=//#')} =#"
 
         return self.var(v)
 
@@ -213,7 +214,7 @@ class Codegen:
             return
         elif isinstance(instr, Out_If):
             val = self.val(instr.test)
-            self << f"if {self.uint64(id(True))} == reinterpret(UInt64, {val})"
+            self << f"if {self.uint64(id(True))} === reinterpret(UInt64, {val})"
             self << f"    @goto {instr.t}"
             self << "else"
             self << f"    @goto {instr.f}"

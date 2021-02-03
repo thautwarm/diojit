@@ -27,6 +27,9 @@ def create_shape(o: object, oop: bool = False, instance=_undef):
     else:
         instance = from_runtime(instance)
         assert not isinstance(instance, D)
+
+    if shape := ShapeSystem.get(o):
+        return shape
     shape = ShapeSystem[o] = Shape(o, oop, {}, instance)
     return shape
 
@@ -54,7 +57,9 @@ def register(
             )
     if attr in shape.fields:
         warnings.warn(
-            Warning(f"field {attr} exists for the shape of object f{o}.")
+            Warning(
+                f"field {attr} exists for the shape of object f{o}."
+            )
         )
 
     def ap(f: typing.Callable[[Judge, VarArg(AbsVal)], CallSpec]):
@@ -72,11 +77,15 @@ create_shape(Intrinsic, oop=True)
 
 
 @register(Intrinsic, "__call__")
-def py_call_intrinsic(self: Judge, f: AbsVal, *args: AbsVal) -> CallSpec:
+def py_call_intrinsic(
+    self: Judge, f: AbsVal, *args: AbsVal
+) -> CallSpec:
     return CallSpec(None, f(*args), (Top,))
 
 
-@register(Intrinsic.Py_LoadGlobal, "__call__", create_shape=dict(oop=False))
+@register(
+    Intrinsic.Py_LoadGlobal, "__call__", create_shape=dict(oop=False)
+)
 def py_load_global(self: Judge, a_str: AbsVal) -> CallSpec:
 
     if a_str.is_literal() and isinstance(a_str.base, str):
@@ -85,4 +94,29 @@ def py_load_global(self: Judge, a_str: AbsVal) -> CallSpec:
             a = self.abs_glob[attr]
             return CallSpec(None, a, possibly_return_types=(a.type,))
         return CallSpec(None, S(Intrinsic.Py_LoadGlobal)(a_str), (Top,))
-    return CallSpec(None, S(Intrinsic.Py_Raise)(S(NameError)(a_str)), (Bot, ))
+    return CallSpec(
+        None, S(Intrinsic.Py_Raise)(S(NameError)(a_str)), (Bot,)
+    )
+
+
+create_shape(bool, oop=True)
+
+
+@register(bool)
+def py_call_bool_type(self: Judge, *args: AbsVal):
+    if not args:
+        constant_return = S(True)
+        return CallSpec(
+            constant_return, constant_return, (Values.A_Bool,)
+        )
+    if len(args) != 1:
+        return NotImplemented
+    arg = args[0]
+    if isinstance(arg.type, S) and issubclass(arg.type.base, bool):
+        constant_return = isinstance(arg, S) and arg or None
+        return CallSpec(constant_return, arg, (Values.A_Bool,))
+    return CallSpec(
+        None,
+        S(intrinsic("Py_CallBoolIfNecessary"))(arg),
+        (Values.A_Bool,),
+    )
