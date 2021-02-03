@@ -1,6 +1,7 @@
-import jit
 from math import sqrt
 import operator
+import timeit
+import jit
 
 GenerateCache = jit.Out_Def.GenerateCache
 
@@ -19,7 +20,7 @@ GenerateCache = jit.Out_Def.GenerateCache
 # GenerateCache.clear()
 # print("".center(100, "="))
 
-
+#
 @jit.register(isinstance, create_shape=True)
 def spec_isinstance(self: jit.Judge, l: jit.AbsVal, r: jit.AbsVal):
     if (
@@ -47,6 +48,7 @@ def spec_pow(self: jit.Judge, l: jit.AbsVal, r: jit.AbsVal):
     return NotImplemented
 
 
+#
 @jit.register(operator.__add__, create_shape=True)
 def spec_add(self: jit.Judge, l: jit.AbsVal, r: jit.AbsVal):
     if l.type == jit.Values.A_Int:
@@ -62,28 +64,57 @@ def spec_add(self: jit.Judge, l: jit.AbsVal, r: jit.AbsVal):
 
 #
 #
-# @jit.register(sqrt, create_shape=True)
-# def spec_sqrt(self: jit.Judge, a: jit.AbsVal):
-#     if a.type == jit.Values.A_Int:
-#         int_sqrt = jit.S(jit.intrinsic("Py_IntSqrt"))
-#         return jit.CallSpec(None, int_sqrt(a), tuple({jit.Values.A_Float}))
-#     return NotImplemented
+@jit.register(sqrt, create_shape=True)
+def spec_sqrt(self: jit.Judge, a: jit.AbsVal):
+    if a.type == jit.Values.A_Int:
+        int_sqrt = jit.S(jit.intrinsic("Py_IntSqrt"))
+        return jit.CallSpec(
+            None, int_sqrt(a), tuple({jit.Values.A_Float})
+        )
+    return NotImplemented
 
 
 @jit.jit(fixed_references=["sqrt", "str", "int", "isinstance"])
 def hypot(x, y):
     if isinstance(x, str):
         x = int(x)
+
     if isinstance(y, str):
         y = int(y)
 
     return sqrt(x ** 2 + y ** 2)
 
 
-print("Direct Translation From Stack Instructions".center(70, "="))
+# print("Direct Translation From Stack Instructions".center(70, "="))
 
-jit.absint.In_Def.UserCodeDyn[hypot].show()
-print("After JITing".center(70, "="))
+# jit.absint.In_Def.UserCodeDyn[hypot].show()
+# print("After JITing".center(70, "="))
 
-call = jit.jit_spec_call(hypot, jit.S(int), jit.S(int), print_jl=print)
-call(1, 2)
+
+jit_func_name = repr(
+    jit.jit_spec_call_ir(hypot, jit.S(int), jit.S(int)).e_call.func
+)
+
+
+hypot_spec = jit.jit_spec_call(
+    hypot,
+    jit.S(int),
+    jit.S(int),  # print_jl=print, print_dio_ir=print
+)
+# #
+# libjl = jit.runtime.julia_rt.get_libjulia()
+# libjl.jl_eval_string(f'using InteractiveUtils;@code_llvm {jit_func_name}(PyO.int, PyO.int)'.encode())
+# jit.runtime.julia_rt.check_jl_err(libjl)
+
+print("jit func result = ", hypot_spec(1, 2))
+print("pure py func result = ", hypot(1, 2))
+print(
+    "pure py time:",
+    timeit.timeit("f(1, 2)", number=1000000, globals=dict(f=hypot)),
+)
+print(
+    "jit time:",
+    timeit.timeit(
+        "f(1, 2)", number=1000000, globals=dict(f=hypot_spec)
+    ),
+)

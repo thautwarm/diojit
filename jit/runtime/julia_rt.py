@@ -117,6 +117,7 @@ def startup():
     check_jl_err(libjl)
 
     libjl.jl_eval_string(str.encode(f"const PyO = PyOType("
+                                    f"bool = @DIO_Obj({u64o(bool)}),"
                                     f"int = @DIO_Obj({u64o(int)}),"
                                     f"float = @DIO_Obj({u64o(float)}),"
                                     f"str = @DIO_Obj({u64o(str)}),"
@@ -138,9 +139,6 @@ def startup():
     check_jl_err(libjl)
     libjl.jl_eval_string(b"printerror(x) = println(showerror(x))")
     check_jl_err(libjl)
-    libjl.jl_eval_string(b'println("setup correctly")')
-    check_jl_err(libjl)
-
     # a = libjl.jl_eval_string(
     #     b"Py_CallFunction(@DIO_Obj(%s), @DIO_Obj(%s), @DIO_Obj(%s))"
     #     % (

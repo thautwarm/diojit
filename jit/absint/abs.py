@@ -191,7 +191,7 @@ class S(Out_Callable, AbsVal):
 
     @property
     def shape(self) -> Optional[Shape]:
-        if self.base in _literal_type_maps:
+        if type(self.base) in _literal_type_maps:
             return
         return ShapeSystem.get(self.base)
 
@@ -900,7 +900,6 @@ class Judge:
                 if r is NotImplemented:
                     return default()
                 return r
-
             shape = a_sub.shape
             if shape and (meth_ := judge_resolve(shape, attr)):
                 # hack pycharm for type check
@@ -909,6 +908,7 @@ class Judge:
                 # noinspection PyTypeHints
                 if isinstance(meth, AbsVal):
                     return self.spec(meth, "__call__", a_args)
+
                 r = meth(self, *a_args)
                 if r is NotImplemented:
                     return default()
