@@ -32,7 +32,7 @@ You can register new specialisation rules(and see examples) from (`jit.absint.pr
 
 We're able to optimise anything!
 
-## Add a rule for `list.append`
+## Add a specialisation rule for `list.append`
 
 1. Python Side:
 
@@ -67,7 +67,7 @@ xs = []
 print("pure py func time:", timeit.timeit("f(xs, 1)", globals=dict(f=append3, xs=xs), number=10000000),)
 xs = []
 print("jit func time:", timeit.timeit("f(xs, 1)", globals=dict(f=jit_append3, xs=xs), number=10000000),)
-``` 
+```
 
 2. Julia Side:
     - https://github.com/thautwarm/DIO.jl/blob/397e6e3cb2349e9c685d4fb6319ff06498c43d88/src/dynamic.jl#L46
@@ -93,4 +93,3 @@ TODO
 
 1. Add more prescribed specialisation rules at `jit.absint.prescr`: for instance.
 2. TODO
-
