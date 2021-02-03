@@ -24,7 +24,7 @@ setup(
     entry_points={"console_scripts": []},
     # above option specifies what commands to install,
     # e.g: entry_points={"console_scripts": ["yapypy=yapypy.cmd:compiler"]}
-    install_requires=["pyrsistent"],  # dependencies
+    install_requires=["pyrsistent", "julia"],  # dependencies
     platforms="any",
     classifiers=[
         "Programming Language :: Python :: 3.6",

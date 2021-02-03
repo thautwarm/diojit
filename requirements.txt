@@ -1,1 +1,2 @@
 pyrsistent >= 0.17.0
+julia >= 0.5.0
