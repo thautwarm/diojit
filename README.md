@@ -73,7 +73,21 @@ print("jit func time:", timeit.timeit("f(xs, 1)", globals=dict(f=jit_append3, xs
     - https://github.com/thautwarm/DIO.jl/blob/397e6e3cb2349e9c685d4fb6319ff06498c43d88/src/dynamic.jl#L46
     - https://github.com/thautwarm/DIO.jl/blob/397e6e3cb2349e9c685d4fb6319ff06498c43d88/src/dynamic.jl#L77-L81
 
+You can either do step 2) at Python side(for users other than DIO-JIT developers):
+```python
+import jit
+jl_implemented_intrinsic = b"""
+function PyList_Append(lst::Ptr, elt::PyPtr)
+    ccall(PyAPI.PyList_Append, Cint, (PyPtr, PyPtr), lst, elt) === Cint(-1)
+end
+DIO.DIO_ExceptCode(::typeof(PyList_Append)) = Cint(-1)
+"""
+libjl = jit.runtime.julia_rt.get_libjulia()
+libjl.jl_eval_string(jl_implemented_intrinsic)
+```
+
 You immediately get a >**100%** time speed up:
+
 ```
 test jit func, [1] append 3 for 3 times: [1, 3, 3, 3]
 pure py func time: 2.9825069

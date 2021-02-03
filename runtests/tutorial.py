@@ -6,21 +6,19 @@ import jit
 GenerateCache = jit.Out_Def.GenerateCache
 
 
-# @jit.jit
-# def trans(x):
-#     y = x
-#     z = y
-#     a = z
-#     return a
-#
-#
-# callspec = jit.jit_spec_call_ir(trans, jit.Val(20))
-# for each in reversed(jit.absint.Out_Def.GenerateCache):
-#     each.show()
-# GenerateCache.clear()
-# print("".center(100, "="))
+@jit.jit(fixed_references=["isinstance", "str"])
+def trans(x):
 
-#
+    if isinstance(x, str):
+        return 1
+    return 2
+
+
+callspec = jit.jit_spec_call_ir(trans, jit.oftype(str))
+
+for each in GenerateCache.values():
+    each.show(print)
+print("".center(100, "="))
 
 
 @jit.jit(fixed_references=["sqrt", "str", "int", "isinstance"])
@@ -101,10 +99,14 @@ print("test jit func, [1] append 3 for 3 times:", xs)
 xs = []
 print(
     "pure py func time:",
-    timeit.timeit("f(xs, 1)", globals=dict(f=append3, xs=xs), number=10000000),
+    timeit.timeit(
+        "f(xs, 1)", globals=dict(f=append3, xs=xs), number=10000000
+    ),
 )
 xs = []
 print(
     "jit func time:",
-    timeit.timeit("f(xs, 1)", globals=dict(f=jit_append3, xs=xs), number=10000000),
+    timeit.timeit(
+        "f(xs, 1)", globals=dict(f=jit_append3, xs=xs), number=10000000
+    ),
 )
