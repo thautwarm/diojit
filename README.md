@@ -41,7 +41,7 @@ julia> using DIO # precompile
 <details><summary>Step 3: Install Python Package</summary>
 <p>
 
-`pip install diojit`
+`pip install git+https://github.com/thautwarm/diojit`
 
 </p>
 </details>
