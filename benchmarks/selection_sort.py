@@ -1,3 +1,10 @@
+"""
+pure py: 5.2469079999999995
+jit: 3.6917899
+>40% performance gain.
+(but if we can have a strict generic list type in Python,
+ we can have a 600% performance gain.
+"""
 import diojit as jit
 import timeit
 from diojit.runtime.julia_rt import check_jl_err
@@ -50,7 +57,7 @@ def mwe(xs):
 jit_msort = jit.jit_spec_call(
     msort,
     jit.oftype(list),
-    print_dio_ir=print,
+    # print_dio_ir=print,
 )
 
 import numpy as np
@@ -59,18 +66,15 @@ import numpy as np
 xs = list(np.random.randint(0, 10000, 100))
 
 print(
-    "pure python",
+    "pure py:",
     timeit.timeit("f(xs)", globals=dict(xs=xs, f=msort), number=10000),
 )
 print(
-    "jit",
+    "jit:",
     timeit.timeit(
         "f(xs)", globals=dict(xs=xs, f=jit_msort), number=10000
     ),
 )
-
-
-jl_eval(f"println(J_msort_0({splice([1, 2, 3])}))")
 
 
 ## This is the specialisation that produces 600% performance gain:

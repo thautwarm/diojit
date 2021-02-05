@@ -309,3 +309,17 @@ def call_list_copy(self: Judge, *args: AbsVal):
         S(Intrinsic.Py_CallMethod)(args[0], S("copy")),
         tuple({S(list)}),
     )
+
+
+@register(list, attr="append")
+def list_append_analysis(self: Judge, *args: AbsVal):
+    if len(args) != 2:
+        # rollback to CPython's default code
+        return NotImplemented
+    lst, elt = args
+
+    return CallSpec(
+        instance=None,  # return value is not static
+        e_call=S(intrinsic("PyList_Append"))(lst, elt),
+        possibly_return_types=tuple({S(type(None))}),
+    )
