@@ -1,6 +1,11 @@
 """
-jit: 0.882221999999997
-pure py: 0.9811460000000016
+[Python39]
+jit: 7.4767213
+pure py: 7.8394832
+
+[Python38]
+7.8734842
+8.994623599999999
 """
 import sys, string
 import requests
@@ -85,14 +90,14 @@ jit_main = jit.jit_spec_call(
 )
 # raise
 #
-# x = bytearray()
-# jl_eval(f"J_main2_0({splice(x)})")
+x = bytearray()
+jl_eval(f"J_main2_0({splice(x)})")
 # raise
 
 print(
     timeit.timeit(
         "main(bytearray())",
-        number=10000,
+        number=100000,
         globals=dict(main=jit_main),
     ),
 )
@@ -100,7 +105,7 @@ print(
 print(
     timeit.timeit(
         "main(bytearray())",
-        number=10000,
+        number=100000,
         globals=dict(main=main),
     ),
 )

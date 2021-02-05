@@ -1,13 +1,13 @@
 from __future__ import annotations
 from .abs import *
 from .intrinsics import *
+from collections.abc import Iterable
 import warnings
 import typing
 import operator
 import math
 import builtins
 import io
-
 
 if typing.TYPE_CHECKING:
     from mypy_extensions import VarArg
@@ -319,12 +319,36 @@ def call_bytearray_getitem(self: Judge, *args):
     return CallSpec(instance, e_call, ret_types)
 
 
+@register(bytes, attr="join")
+def call_bytearray_join(self: Judge, *args: AbsVal):
+    if not args != 2:
+        return NotImplemented
+    sep, iters = args
+    if (
+        sep.type.is_s()
+        and sep.type.base is bytes
+        and iters.type.is_s()
+        and issubclass(iters.type.base, Iterable)
+    ):
+        # https://sourcegraph.com/github.com/python/cpython@3.9/-/blob/Include/cpython/bytesobject.h#L36
+        func = S(intrinsic("_PyBytes_Join"))
+        e_call = func(sep, iters)
+        return CallSpec(None, e_call, (S(bytes),))
+
+    spec = self.no_spec(sep, "join", [iters])
+    return CallSpec(None, spec.e_call, (S(bytes),))
+
+
 @register(bytes, attr="__getitem__")
-def call_bytearray_getitem(self: Judge, *args):
+def call_bytearray_getitem(self: Judge, *args: AbsVal):
     if len(args) != 2:
         return NotImplemented
     ret_types = (Values.A_Int,)
     subject, item = args
+    # Sequence protocol is slower:
+    # if item.type.is_s() and issubclass(item.type.base, int):
+    #     func = S(intrinsic("PySequence_GetItem"))
+    # else:
     func = S(intrinsic("PyObject_GetItem"))
     e_call = func(subject, item)
     instance = None
