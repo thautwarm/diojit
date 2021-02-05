@@ -115,16 +115,13 @@ def append3(xs, x):
 jit_append3 = jit.jit_spec_call(append3, jit.oftype(list), jit.Top) # 'Top' means 'Any'
 xs = [1]
 jit_append3(xs, 3)
-print("test jit func, [1] append 3 for 3 times:", xs)
-xs = []
-print("pure py func time:", timeit.timeit("f(xs, 1)", globals=dict(f=append3, xs=xs), number=10000000),)
-xs = []
-print("diojit func time:", timeit.timeit("f(xs, 1)", globals=dict(f=jit_append3, xs=xs), number=10000000),)
 ```
 
 2. Julia Side:
-    - https://github.com/thautwarm/DIO.jl/blob/6e2258d19fe87f81b3f78589ec28209eb24ee55a/src/dynamic.jl#L46
-    - https://github.com/thautwarm/DIO.jl/blob/6e2258d19fe87f81b3f78589ec28209eb24ee55a/src/dynamic.jl#L77-L81
+    
+- [import 'Py_ListAppend' symbol](https://github.com/thautwarm/DIO.jl/blob/182a995cf0543007ef5d7089e5fdbbb8104f8e02/src/dynamic.jl#L32)
+
+- [calling convention for 'Py_ListAppend'](https://github.com/thautwarm/DIO.jl/blob/182a995cf0543007ef5d7089e5fdbbb8104f8e02/src/dynamic.jl#L50):
 
 You can either do step 2) at Python side(for users other than DIO-JIT developers):
 ```python
@@ -141,10 +138,17 @@ libjl.jl_eval_string(jl_implemented_intrinsic)
 
 You immediately get a >**100%** time speed up:
 
-```
-test jit func, [1] append 3 for 3 times: [1, 3, 3, 3]
-pure py func time: 2.9825069
-jit func time: 1.4520723000000002
+```python
+print("test jit_append3, [1] append 3 for 3 times:", xs)
+# test jit func, [1] append 3 for 3 times: [1, 3, 3, 3]
+
+xs = []
+%timeit append3(xs, 1)
+# 293 ns ± 26.2 ns per loop (mean ± std. dev. of 7 runs, 1000000 loops each)
+
+xs = []
+%timeit jit_append3(xs, 1)
+# 142 ns ± 14.9 ns per loop (mean ± std. dev. of 7 runs, 10000000 loops each)
 ```
 
 ## Why Julia?
