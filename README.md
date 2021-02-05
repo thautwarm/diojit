@@ -41,7 +41,7 @@ julia> using DIO # precompile
 <details><summary>Step 3: Install Python Package</summary>
 <p>
 
-`pip install diojit`
+`pip install git+https://github.com/thautwarm/diojit`
 
 </p>
 </details>
@@ -100,7 +100,7 @@ def append3(xs, x):
     xs.append(x)
     xs.append(x)
 
-jit_append3 = jit.jit_spec_call(append3, jit.oftype(list), jit.Top)
+jit_append3 = jit.jit_spec_call(append3, jit.oftype(list), jit.Top) # 'Top' means 'Any'
 xs = [1]
 jit_append3(xs, 3)
 print("test jit func, [1] append 3 for 3 times:", xs)
