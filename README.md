@@ -1,6 +1,6 @@
 ## DIO-JIT: General-purpose Python JIT
 
-[中文README.md](./README.zh_CN.md)
+[中文README](./README.zh_CN.md)
 
 Important: DIO-JIT now works for Python >= 3.8.
 
