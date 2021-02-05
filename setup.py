@@ -3,7 +3,7 @@ from datetime import datetime
 from pathlib import Path
 
 
-version = 0.1
+version = "0.1.1"
 with Path("README.md").open() as readme:
     readme = readme.read()
 
@@ -16,7 +16,7 @@ setup(
     long_description=readme,
     long_description_content_type="text/markdown",
     license="mit",
-    python_requires=">=3.6.0",
+    python_requires=">=3.8.0",
     url="https://github.com/thautwarm/diojit",
     author="thautwarm",
     author_email="twshere@outlook.com",
