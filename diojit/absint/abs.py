@@ -97,6 +97,9 @@ class AbsVal:
         def is_literal(self) -> bool:
             raise NotImplementedError
 
+    def is_s(self):
+        return False
+
 
 @total_ordering
 class D(Out_Callable, AbsVal):
@@ -178,6 +181,9 @@ class S(Out_Callable, AbsVal):
         if self.base == other.base:
             return self.params < other.params
         return hash(self.base) < hash(other.base)
+
+    def is_s(self):
+        return True
 
     @property
     def type(self):
@@ -592,7 +598,9 @@ PreSpecMaps: dict[CallRecord, tuple[str, set[AbsVal, ...]]] = {}
 SpecMaps: dict[CallRecord, JITSpecInfo] = {}
 
 
-def mk_prespec_name(key: CallRecord, partial_returns: set[AbsVal], name=""):
+def mk_prespec_name(
+    key: CallRecord, partial_returns: set[AbsVal], name=""
+):
     v = PreSpecMaps.get(key)
     if v is None:
         i = len(PreSpecMaps)
@@ -600,7 +608,6 @@ def mk_prespec_name(key: CallRecord, partial_returns: set[AbsVal], name=""):
         PreSpecMaps[key] = n, partial_returns
         return n
     return v[0]
-
 
 
 @dataclasses.dataclass(frozen=True)
@@ -832,6 +839,7 @@ class Judge:
             instance, e_call, union_types = self.spec(
                 a_subj, attr, a_args
             ).astuple()
+            # print(a_subj, 'returns', union_types)
 
             if e_call in (Top, Bot):
                 self << Out_Error()
@@ -1039,13 +1047,17 @@ def ufunc_spec(self, a_func: AbsVal, *arguments: AbsVal) -> CallSpec:
         jit_func_name, partial_returns = partial_spec
         abs_jit_func = S(intrinsic(jit_func_name))
         e_call = abs_jit_func(*arguments)
-        partial_return_types = set(each.type for each in partial_returns)
+        partial_return_types = set(
+            each.type for each in partial_returns
+        )
         partial_return_types.add(Top)
         ret_types = tuple(sorted(partial_return_types))
         instance = None
     else:
         partial_returns = set()
-        jit_func_name = mk_prespec_name(call_record, partial_returns, name=in_def.name)
+        jit_func_name = mk_prespec_name(
+            call_record, partial_returns, name=in_def.name
+        )
 
         abs_glob = {}
         for glob_name in in_def.static_glob:
@@ -1076,6 +1088,7 @@ def ufunc_spec(self, a_func: AbsVal, *arguments: AbsVal) -> CallSpec:
             instance = None
         intrin = intrinsic(jit_func_name)
         spec_info = JITSpecInfo(instance, S(intrin), ret_types)
+        SpecMaps[call_record] = spec_info
         out_def = Out_Def(
             spec_info, parameters, tuple(instrs), gen_start, in_def.func
         )

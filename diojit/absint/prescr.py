@@ -26,6 +26,14 @@ def u64i(i: int):
     return f"{i:#0{18}x}"
 
 
+concrete_numeric_types = {
+    int: "PyInt_Compare",
+    float: "PyObject_RichCompare",
+    complex: "PyObject_RichCompare",
+    bool: "PyInt_Compare",
+}
+
+
 def create_shape(o: object, oop: bool = False, instance=_undef):
     """
     o: 'Special Object' in the paper. Must be immutable.
@@ -70,7 +78,7 @@ def register(
         else:
             raise ValueError(
                 f"No shape found for {{ o={o} }}.\n"
-                f" Maybe use {{ jit.create_shape(o, oop_or_not) }} firstly?"
+                f" Maybe use {{ create_shape(o, oop_or_not) }} firstly?"
             )
     if attr in shape.fields:
         warnings.warn(
@@ -91,6 +99,7 @@ def shape_of(o):
 
 
 create_shape(Intrinsic, oop=True)
+create_shape(list, oop=True)
 
 
 @register(Intrinsic, "__call__")
@@ -190,6 +199,15 @@ def spec_pow(self: Judge, l: AbsVal, r: AbsVal):
     return NotImplemented
 
 
+@register(len, create_shape=True)
+def spec_len(self: Judge, *args: AbsVal):
+    if len(args) != 1:
+        return NotImplemented
+    arg = args[0]
+    e_call = S(Intrinsic.Py_CallFunction)(S(len), arg)
+    return CallSpec(None, e_call, tuple({Values.A_Int}))
+
+
 @register(operator.__add__, create_shape=True)
 def spec_add(self: Judge, l: AbsVal, r: AbsVal):
     if l.type == Values.A_Int:
@@ -203,12 +221,38 @@ def spec_add(self: Judge, l: AbsVal, r: AbsVal):
     return NotImplemented
 
 
-@register(operator.__le__, create_shape=True)
-def spec_add(self: Judge, l: AbsVal, r: AbsVal):
-    func = S(Intrinsic.Py_CallFunction)
-    return CallSpec(
-        None, func(S(operator.__le__), l, r), tuple({Values.A_Bool})
-    )
+def spec_cmp(op):
+    def spec_op(self: Judge, *args: AbsVal):
+        if len(args) != 2:
+            return NotImplemented
+        l, r = args
+        func_name = "PyObject_RichCompare"
+        l_t = l.type
+        r_t = r.type
+        if (
+            l_t.is_s()
+            and r_t.is_s()
+            and l_t.base in concrete_numeric_types
+            and r_t.base in concrete_numeric_types
+        ):
+            if l_t.base == r_t.base:
+                func_name = concrete_numeric_types[l_t.base]
+            ret_types = tuple({Values.A_Bool})
+        else:
+            ret_types = tuple({Top})
+
+        func = S(intrinsic(func_name))
+        return CallSpec(None, func(l, r, lit(op)), ret_types)
+
+    return spec_op
+
+
+register(operator.__le__, create_shape=True)(spec_cmp("Py_LE"))
+register(operator.__lt__, create_shape=True)(spec_cmp("Py_LT"))
+register(operator.__ge__, create_shape=True)(spec_cmp("Py_GE"))
+register(operator.__gt__, create_shape=True)(spec_cmp("Py_GT"))
+register(operator.__eq__, create_shape=True)(spec_cmp("Py_EQ"))
+register(operator.__ne__, create_shape=True)(spec_cmp("Py_NE"))
 
 
 @register(math.sqrt, create_shape=True)
@@ -217,3 +261,51 @@ def spec_sqrt(self: Judge, a: AbsVal):
         int_sqrt = S(intrinsic("Py_IntSqrt"))
         return CallSpec(None, int_sqrt(a), tuple({Values.A_Float}))
     return NotImplemented
+
+
+@register(operator.__getitem__, create_shape=True)
+def call_getitem(self: Judge, *args: AbsVal):
+    if len(args) != 2:
+        # 返回到默认python实现
+        return NotImplemented
+    subject, item = args
+    ret_types = (Top,)
+
+    if (
+        subject.type not in (Top, Bot)
+        and subject.type.base == list
+        and item.type not in (Top, Bot)
+        and issubclass(item.type.base, int)
+    ):
+        func = S(intrinsic("PyList_GetItem"))
+        # ret_types = tuple({Values.A_Int})
+    else:
+        func = S(intrinsic("PyObject_GetItem"))
+
+    e_call = func(subject, item)
+    instance = None
+    return CallSpec(instance, e_call, ret_types)
+
+
+@register(operator.__setitem__, create_shape=True)
+def call_getitem(self: Judge, *args: AbsVal):
+    if len(args) != 3:
+        # 返回到默认python实现/ default python impl
+        return NotImplemented
+    subject, item, value = args
+    func = S(intrinsic("PyObject_SetItem"))
+    e_call = func(subject, item, value)
+    instance = None
+    ret_types = (Top,)
+    return CallSpec(instance, e_call, ret_types)
+
+
+@register(list, attr="copy")
+def call_list_copy(self: Judge, *args: AbsVal):
+    if len(args) != 1:
+        return NotImplemented
+    return CallSpec(
+        None,
+        S(Intrinsic.Py_CallMethod)(args[0], S("copy")),
+        tuple({S(list)}),
+    )

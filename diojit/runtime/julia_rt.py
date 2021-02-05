@@ -127,6 +127,8 @@ def startup():
             f"float = @DIO_Obj({u64o(float)}),"
             f"str = @DIO_Obj({u64o(str)}),"
             f"type = @DIO_Obj({u64o(type)}),"
+            f"True = @DIO_Obj({u64o(True)}),"
+            f"False = @DIO_Obj({u64o(False)}),"
             f"None = @DIO_Obj({u64o(None)}),"
             f"complex = @DIO_Obj({u64o(complex)}),"
             f"tuple = @DIO_Obj({u64o(tuple)}),"

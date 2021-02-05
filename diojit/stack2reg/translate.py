@@ -38,14 +38,17 @@ BIN_OPS: dict[int, FunctionType] = {
 }
 
 
-CMP_OPS: dict[str, FunctionType] = _t.cast(_t.Dict[str, FunctionType], {
-    "<": operator.__lt__,
-    ">": operator.__gt__,
-    "<=": operator.__le__,
-    ">=": operator.__ge__,
-    "!=": operator.__ne__,
-    "==": operator.__eq__,
-})
+CMP_OPS: dict[str, FunctionType] = _t.cast(
+    _t.Dict[str, FunctionType],
+    {
+        "<": operator.__lt__,
+        ">": operator.__gt__,
+        "<=": operator.__le__,
+        ">=": operator.__ge__,
+        "!=": operator.__ne__,
+        "==": operator.__eq__,
+    },
+)
 
 
 def flags_check(flag, *patterns):
@@ -69,7 +72,9 @@ class PyC:
 
         self.co = list(co)
         self.label_to_co_offsets = _map = {}
-        for i, instr in enumerate(self.co):  # type:  int, dis.Instruction
+        for i, instr in enumerate(
+            self.co
+        ):  # type:  int, dis.Instruction
             if instr.is_jump_target:
                 _map[instr.offset] = i
             if instr.opcode in JUMP_NAMES:
@@ -177,7 +182,10 @@ class PyC:
     def interp(self, offset=0):
         while True:
             x: dis.Instruction = self.cur()
-            if x.starts_line is not None and x.starts_line != self.lastlinenumber:
+            if (
+                x.starts_line is not None
+                and x.starts_line != self.lastlinenumber
+            ):
                 line = x.starts_line
                 self.codegen(In_SetLineno(line, self.filename))
 
@@ -205,7 +213,12 @@ class PyC:
             elif x.opcode is opcodes.STORE_ATTR:
                 a_base = self.pop()
                 a_value = self.pop()
-                self.call(S(Intrinsic.Py_StoreAttr), a_base, S(x.argval), a_value)
+                self.call(
+                    S(Intrinsic.Py_StoreAttr),
+                    a_base,
+                    S(x.argval),
+                    a_value,
+                )
             elif (
                 x.opcode is opcodes.JUMP_ABSOLUTE
                 or x.opcode is opcodes.JUMP_FORWARD
@@ -316,8 +329,11 @@ class PyC:
                 self.push(a)
                 self.push(a)
             elif x.opcode is opcodes.BINARY_SUBSCR:
-                right, left = self.pop(), self.pop()
-                self.call_method(left, S("__getitem__"), right)
+                # | TOS1 | TOS |
+                # TOS1[TOS]
+                tos = self.pop()
+                tos1 = self.pop()
+                self.call(S(operator.__getitem__), tos1, tos)
             elif x.opname.startswith("BINARY_"):
                 right, left = self.pop(), self.pop()
                 self.call(S(BIN_OPS[x.opcode]), left, right)
@@ -338,9 +354,13 @@ class PyC:
             elif x.opcode is opcodes.IS_OP:
                 right, left = self.pop(), self.pop()
                 if x.argval != 1:
-                    self.call(S(Intrinsic.Py_AddressCompare), left, right)
+                    self.call(
+                        S(Intrinsic.Py_AddressCompare), left, right
+                    )
                 else:
-                    self.call(S(Intrinsic.Py_AddressCompare), left, right)
+                    self.call(
+                        S(Intrinsic.Py_AddressCompare), left, right
+                    )
                     self.call(S(Intrinsic.Py_Not), self.pop())
 
             elif x.opcode is opcodes.COMPARE_OP:
@@ -354,13 +374,25 @@ class PyC:
                 elif cmp_name == "exception match":
                     raise NotImplemented
                 elif cmp_name == "is":
-                    self.call(S(Intrinsic.Py_AddressCompare), left, right)
+                    self.call(
+                        S(Intrinsic.Py_AddressCompare), left, right
+                    )
                 elif cmp_name == "is not":
-                    self.call(S(Intrinsic.Py_AddressCompare), left, right)
+                    self.call(
+                        S(Intrinsic.Py_AddressCompare), left, right
+                    )
                     self.call_method(self.pop(), S("__not__"))
                 else:
                     self.call(S(CMP_OPS[cmp_name]), left, right)
 
+            elif x.opcode is opcodes.STORE_SUBSCR:
+                # | TOS2 | TOS1 | TOS |
+                # TOS1[TOS] = TOS2
+                tos = self.pop()
+                tos1 = self.pop()
+                tos2 = self.pop()
+                self.call(S(operator.__setitem__), tos1, tos, tos2)
+                self.pop()
             elif x.opcode is opcodes.POP_TOP:
                 self.pop()
             else:
