@@ -6,14 +6,16 @@ import typing
 import operator
 import math
 import builtins
+import io
 
 
 if typing.TYPE_CHECKING:
     from mypy_extensions import VarArg
 
 _undef = object()
-
 __all__ = ["create_shape", "register"]
+
+_not_inferred_types = (Top, Bot)
 
 
 def lit(x: str):
@@ -100,6 +102,13 @@ def shape_of(o):
 
 create_shape(Intrinsic, oop=True)
 create_shape(list, oop=True)
+create_shape(bytes, oop=True)
+create_shape(bool, oop=True)
+create_shape(bytearray, oop=True)
+create_shape(next)
+create_shape(io.BytesIO)
+_NoneType_shape = create_shape(type(None))
+_NoneType_shape.instance = S(None)
 
 
 @register(Intrinsic, "__call__")
@@ -145,9 +154,6 @@ def py_load_global(self: Judge, a_str: AbsVal) -> CallSpec:
 
             return constant_key_path()
     return slow_path()
-
-
-create_shape(bool, oop=True)
 
 
 @register(bool, attr="__call__")
@@ -204,7 +210,9 @@ def spec_len(self: Judge, *args: AbsVal):
     if len(args) != 1:
         return NotImplemented
     arg = args[0]
-    e_call = S(Intrinsic.Py_CallFunction)(S(len), arg)
+
+    func = S(intrinsic("PySequence_Length"))
+    e_call = func(arg)
     return CallSpec(None, e_call, tuple({Values.A_Int}))
 
 
@@ -266,22 +274,58 @@ def spec_sqrt(self: Judge, a: AbsVal):
 @register(operator.__getitem__, create_shape=True)
 def call_getitem(self: Judge, *args: AbsVal):
     if len(args) != 2:
-        # 返回到默认python实现
         return NotImplemented
     subject, item = args
     ret_types = (Top,)
+    sub_t = subject.type
+    if sub_t not in (Top, Bot):
+        if sub_t.shape and (
+            dispatched := sub_t.shape.fields.get("__getitem__")
+        ):
+            # noinspection PyUnboundLocalVariable
+            if isinstance(dispatched, FunctionType):
+                # noinspection PyUnboundLocalVariable
+                return dispatched(self, *args)
+            return self.spec(subject, "__call__", *args)
 
-    if (
-        subject.type not in (Top, Bot)
-        and subject.type.base == list
-        and item.type not in (Top, Bot)
-        and issubclass(item.type.base, int)
-    ):
-        func = S(intrinsic("PyList_GetItem"))
-        # ret_types = tuple({Values.A_Int})
-    else:
-        func = S(intrinsic("PyObject_GetItem"))
+    func = S(intrinsic("PyObject_GetItem"))
+    e_call = func(subject, item)
+    instance = None
+    return CallSpec(instance, e_call, ret_types)
 
+
+@register(list, attr="__getitem__")
+def call_list_getitem(self: Judge, *args):
+    if len(args) != 2:
+        return NotImplemented
+    ret_types = (Top,)
+    subject, item = args
+    func = S(intrinsic("PyList_GetItem"))
+    e_call = func(subject, item)
+    instance = None
+    return CallSpec(instance, e_call, ret_types)
+
+
+@register(bytearray, attr="__getitem__")
+def call_bytearray_getitem(self: Judge, *args):
+    if len(args) != 2:
+
+        return NotImplemented
+    ret_types = (Values.A_Int,)
+    subject, item = args
+    func = S(intrinsic("PyObject_GetItem"))
+    e_call = func(subject, item)
+    instance = None
+    return CallSpec(instance, e_call, ret_types)
+
+
+@register(bytes, attr="__getitem__")
+def call_bytearray_getitem(self: Judge, *args):
+    if len(args) != 2:
+        return NotImplemented
+    ret_types = (Values.A_Int,)
+    subject, item = args
+    func = S(intrinsic("PyObject_GetItem"))
     e_call = func(subject, item)
     instance = None
     return CallSpec(instance, e_call, ret_types)
@@ -290,7 +334,7 @@ def call_getitem(self: Judge, *args: AbsVal):
 @register(operator.__setitem__, create_shape=True)
 def call_getitem(self: Judge, *args: AbsVal):
     if len(args) != 3:
-        # 返回到默认python实现/ default python impl
+        # default python impl
         return NotImplemented
     subject, item, value = args
     func = S(intrinsic("PyObject_SetItem"))
@@ -323,3 +367,69 @@ def list_append_analysis(self: Judge, *args: AbsVal):
         e_call=S(intrinsic("PyList_Append"))(lst, elt),
         possibly_return_types=tuple({S(type(None))}),
     )
+
+
+@register(Intrinsic.Py_BuildList, create_shape=True)
+def call_build_list(self: Judge, *args: AbsVal):
+    ret_types = tuple({S(list)})
+    func = S(intrinsic("PyList_Construct"))
+
+    return CallSpec(None, func(*args), ret_types)
+
+
+@register(io.BytesIO)
+def call_bytes_io(self: Judge, *args: AbsVal):
+    if len(args) != 1:
+        return NotImplemented
+
+    arg = args[0]
+    func = S(Intrinsic.Py_CallFunction)
+    abs_bytes_io = S(io.BytesIO)
+    return CallSpec(None, func(abs_bytes_io, arg), (abs_bytes_io,))
+
+
+next_type_maps = {io.BytesIO: bytes}
+
+
+@register(operator.is_, create_shape=True)
+def call_is(self: Judge, *args: AbsVal):
+    if len(args) != 2:
+        return NotImplemented
+    ret_types = (Values.A_Bool,)
+    l, r = args
+    if l == r:
+        return CallSpec(S(True), S(True), ret_types)
+    if (
+        l.type not in _not_inferred_types
+        and r.type not in _not_inferred_types
+        and l.type.base != r.type.base
+    ):
+
+        return CallSpec(S(False), S(False), ret_types)
+
+    func = S(intrinsic("Py_AddressCompare"))
+    return CallSpec(None, func(*args), ret_types)
+
+
+@register(next, create_shape=True)
+def call_next(self: Judge, *args: AbsVal):
+    if len(args) not in (1, 2):
+        return NotImplemented
+
+    o = args[0]
+    if o.type in (Top, Bot):
+        return NotImplemented
+
+    t = o.type.base
+    if eltype := next_type_maps.get(t):
+        ret_types = {S(eltype)}
+    else:
+        ret_types = {Top}
+
+    if len(args) == 2:
+        default = args[1]
+        ret_types.add(default.type)
+    func = S(Intrinsic.Py_CallFunction)
+
+    ret_types = tuple(sorted(ret_types))
+    return CallSpec(None, func(S(next), *args), ret_types)

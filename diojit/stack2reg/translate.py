@@ -354,37 +354,40 @@ class PyC:
             elif x.opcode is opcodes.IS_OP:
                 right, left = self.pop(), self.pop()
                 if x.argval != 1:
-                    self.call(
-                        S(Intrinsic.Py_AddressCompare), left, right
-                    )
+                    self.call(S(operator.is_), left, right)
                 else:
-                    self.call(
-                        S(Intrinsic.Py_AddressCompare), left, right
-                    )
-                    self.call(S(Intrinsic.Py_Not), self.pop())
-
+                    self.call(S(operator.is_), left, right)
+                    self.call(S(operator.__not__), self.pop())
+            elif x.opcode is opcodes.CONTAINS_OP:
+                right, left = self.pop(), self.pop()
+                if x.argval != 1:
+                    self.call(S(operator.__contains__), right, left)
+                else:
+                    self.call(S(operator.__contains__), right, left)
+                    self.call(S(operator.__not__), self.pop())
             elif x.opcode is opcodes.COMPARE_OP:
                 cmp_name = dis.cmp_op[x.arg]
                 right, left = self.pop(), self.pop()
                 if cmp_name == "not_in":
-                    self.call_method(left, S("__contains__"), right)
-                    self.call(S(Intrinsic.Py_Not), self.pop())
+                    self.call(S(operator.__contains__), right, left)
+                    self.call(S(operator.__not__), self.pop())
                 elif cmp_name == "in":
-                    self.call_method(left, S("__contains__"), right)
+                    self.call(S(operator.__contains__), right, left)
                 elif cmp_name == "exception match":
                     raise NotImplemented
                 elif cmp_name == "is":
-                    self.call(
-                        S(Intrinsic.Py_AddressCompare), left, right
-                    )
+                    self.call(S(operator.is_), left, right)
                 elif cmp_name == "is not":
-                    self.call(
-                        S(Intrinsic.Py_AddressCompare), left, right
-                    )
-                    self.call_method(self.pop(), S("__not__"))
+                    self.call(S(operator.is_), left, right)
+                    self.call(S(operator.__not__), self.pop())
                 else:
                     self.call(S(CMP_OPS[cmp_name]), left, right)
 
+            elif x.opcode is opcodes.DELETE_SUBSCR:
+                tos = self.pop()
+                tos1 = self.pop()
+                self.call(S(operator.__delitem__), tos1, tos)
+                self.pop()
             elif x.opcode is opcodes.STORE_SUBSCR:
                 # | TOS2 | TOS1 | TOS |
                 # TOS1[TOS] = TOS2
@@ -393,6 +396,21 @@ class PyC:
                 tos2 = self.pop()
                 self.call(S(operator.__setitem__), tos1, tos, tos2)
                 self.pop()
+            elif x.opcode is opcodes.BUILD_SLICE:
+                # """
+                # Pushes a slice object on the stack. argc must be 2 or 3. If it is 2, slice(TOS1, TOS) is pushed;
+                # if it is 3, slice(TOS2, TOS1, TOS) is pushed. See the slice() built-in function for more information.
+                # """
+                tos = self.pop()
+                tos1 = self.pop()
+                if x.argval == 2:
+                    self.call(S(slice), tos1, tos)
+                elif x.argval == 3:
+                    tos2 = self.pop()
+                    self.call(S(slice), tos2, tos1, tos)
+                else:
+                    raise ValueError
+
             elif x.opcode is opcodes.POP_TOP:
                 self.pop()
             else:

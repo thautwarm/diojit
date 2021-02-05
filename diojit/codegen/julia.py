@@ -91,6 +91,7 @@ class Codegen:
         elif isinstance(x, AbsVal):
             return self.val(x)
 
+        assert isinstance(x.func, S) and isinstance(x.func.base, Intrinsic), x
         f = self.call(x.func)
         args = ", ".join(self.call(arg, True) for arg in x.args)
         if dealloc_args:

@@ -1,7 +1,7 @@
 """
-fib(py) bench time: 1.3318193000000003
-fib(jit+untyped) bench time: 0.42067140000000025
-fib(jit+inferred) bench time: 0.1776359000000003
+fib(15) (py) bench time: 1.3318193000000003
+fib(15) (jit+untyped) bench time: 0.42067140000000025
+fib(15) (jit+inferred) bench time: 0.1776359000000003
 """
 import diojit as jit
 from inspect import getsource
@@ -23,7 +23,7 @@ def fib_fix(a):
 
 jit_fib_fix_untyped = jit.jit_spec_call(fib_fix, jit.Top)
 jit_fib_fix_typed = jit.jit_spec_call(fib_fix, jit.oftype(int))
-# jl_eval(f"println(J_fib__fix_1({splice(20)}))")
+# jl_eval(f"println(J_fib__fix_1({splice(50)}))")
 # check_jl_err(libjl)
 print("fib".center(70, "="))
 print(getsource(fib))

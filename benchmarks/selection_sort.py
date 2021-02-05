@@ -7,6 +7,7 @@ jit: 3.6917899
 """
 import diojit as jit
 import timeit
+import numpy as np
 from diojit.runtime.julia_rt import check_jl_err
 from diojit.codegen.julia import splice
 
@@ -59,8 +60,6 @@ jit_msort = jit.jit_spec_call(
     jit.oftype(list),
     # print_dio_ir=print,
 )
-
-import numpy as np
 
 
 xs = list(np.random.randint(0, 10000, 100))

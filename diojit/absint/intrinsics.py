@@ -70,30 +70,30 @@ class Intrinsic(metaclass=_mk):
 
     Py_Raise: Intrinsic
 
-    Py_AddressCompare = operator.is_
-    Py_Not = operator.__not__
+    Py_AddressCompare: Intrinsic
+    Py_Not: Intrinsic
 
-    Py_Pow = operator.__pow__
-    Py_Mul = operator.__mul__
-    Py_Matmul = operator.__matmul__
-    Py_Floordiv = operator.__floordiv__
-    Py_Truediv = operator.__truediv__
-    Py_Mod = operator.__mod__
-    Py_Add = operator.__add__
-    Py_Sub = operator.__sub__
-    Py_Getitem = operator.__getitem__
-    Py_Lshift = operator.__lshift__
-    PY_Rshift = operator.__rshift__
-    Py_And = operator.__and__
-    Py_Xor = operator.__xor__
-    Py_Or = operator.__or__
-
-    Py_Lt = operator.__lt__
-    Py_Gt = operator.__gt__
-    Py_Le = operator.__le__
-    Py_Ge = operator.__ge__
-    Py_Ne = operator.__ne__
-    Py_Eq = operator.__eq__
+    # Py_Pow = operator.__pow__
+    # Py_Mul = operator.__mul__
+    # Py_Matmul = operator.__matmul__
+    # Py_Floordiv = operator.__floordiv__
+    # Py_Truediv = operator.__truediv__
+    # Py_Mod = operator.__mod__
+    # Py_Add = operator.__add__
+    # Py_Sub = operator.__sub__
+    # Py_Getitem = operator.__getitem__
+    # Py_Lshift = operator.__lshift__
+    # PY_Rshift = operator.__rshift__
+    # Py_And = operator.__and__
+    # Py_Xor = operator.__xor__
+    # Py_Or = operator.__or__
+    #
+    # Py_Lt = operator.__lt__
+    # Py_Gt = operator.__gt__
+    # Py_Le = operator.__le__
+    # Py_Ge = operator.__ge__
+    # Py_Ne = operator.__ne__
+    # Py_Eq = operator.__eq__
 
 
 _cache = {}
