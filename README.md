@@ -49,6 +49,17 @@ julia> using DIO # precompile
 </p>
 </details>
 
+<details><summary>How to fetch latest DIO-JIT?(if you have installed DIO)</summary>
+<p>
+
+```
+pip install -U diojit
+julia -e "using Pkg; Pkg.update(string(:DIO));using DIO"
+``` 
+
+</p>
+</details>
+
 Usage from Python side is quite similar to that from Numba.
 ```python
 import diojit
