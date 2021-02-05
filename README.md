@@ -12,6 +12,7 @@ Important: DIO-JIT now works for Python >= 3.8.
 
 There are several options for you to install Julia:
 
+- [scoop](http://scoop.sh/) (Windows)
 - [julialang.org](https://julialang.org/downloads) (recommended for Windows users)
 - [jill.py](https://github.com/johnnychen94/jill.py):
     
