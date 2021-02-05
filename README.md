@@ -1,5 +1,6 @@
 ## DIO-JIT: General-purpose Python JIT
 
+[中文README.md](./README.zh_CN.md)
 
 Important: DIO-JIT now works for Python >= 3.8.
 
@@ -210,15 +211,16 @@ We prefer compiling JITed code with LLVM, and **Julia is quite a killer tool for
 
     However, a writable cell makes it hard to optimise in a dynamic language.
 
-    We recommend your create a bound object to simulate fast closures **after we support variadic arguments**:
-
+    We recommend using `types.MethodType` to create immutable closures，which can be highly optimised in DIO-JIT(near future).
+    
     ```python
-    class Closure:
-        def __init__(self, f, cells: tuple):
-            self.cells = cells
-            self.f = f
-        def __call__(self, *args):
-            return self.f(self.cells, *args)
+    import types
+    def f(freevars, z):
+            x, y = freevars
+            return x + y + z
+    
+    def hof(x, y):
+        return types.MethodType(f, (x, y))
     ```
 
     </p>
@@ -245,10 +247,6 @@ We prefer compiling JITed code with LLVM, and **Julia is quite a killer tool for
 
     </p>
     </details>
-
-6. Missing Line number in debug information?
-
-    Sorry, the efforts are limited. We will do this at a more formal release.
 
 ## Contributions
 
