@@ -257,3 +257,7 @@ We prefer compiling JITed code with LLVM, and **Julia is quite a killer tool for
 
 1. Add more prescribed specialisation rules at `jit.absint.prescr`.
 2. TODO
+
+## Benchmarks
+
+Check `benchmarks` directory.

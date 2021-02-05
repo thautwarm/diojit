@@ -268,3 +268,7 @@ xs = []
 
     例见`jit.absint.prescr`。
 2. TODO
+
+## Benchmarks
+
+康康 `benchmarks` 文件夹。
