@@ -36,8 +36,7 @@ def _jit(func: absint.FunctionType, glob: set[str]):
     in_def = absint.In_Def(
         code.co_argcount,
         blocks,
-        func.__name__,
-        func.__globals__,
+        func,
         static_global,
     )
     absint.In_Def.UserCodeDyn[func] = in_def
@@ -61,7 +60,7 @@ def jit_spec_call_ir(
             assert isinstance(arg, absint.AbsVal)
             a_args.append(absint.D(len(rt_map), arg))
     a_f = absint.from_runtime(f, rt_map)
-    j = absint.Judge({}, [], {} if glob is None else glob)
+    j = absint.Judge({}, f, {} if glob is None else glob)
     return j.spec(a_f, attr, a_args)
 
 
@@ -91,7 +90,7 @@ def jit_spec_call(
             assert isinstance(arg, absint.AbsVal)
             a_args.append(absint.D(len(rt_map), arg))
     a_f = absint.from_runtime(f, rt_map)
-    j = absint.Judge({}, [], {} if glob is None else glob)
+    j = absint.Judge({}, f, {} if glob is None else glob)
     spec = j.spec(a_f, attr, a_args)
     jit_f = spec.e_call.func.base
     assert isinstance(jit_f, absint.Intrinsic)

@@ -14,20 +14,25 @@ from ..absint import *
 from io import StringIO
 from typing import Union
 from contextlib import contextmanager
+from itertools import repeat, chain
 
 import json
+
+
+def splice(o):
+    return f"@DIO_Obj({u64o(o)})"
 
 
 def u64o(o: object):
     """
     uint64 address from object
     """
-    return Codegen.uint64(id(o))
+    return u64i(id(o))
 
 
 def u64i(i: int):
     """uint64 from integer"""
-    return Codegen.uint64(i)
+    return f"{i:#0{18}x}"
 
 
 class Codegen:
@@ -37,8 +42,12 @@ class Codegen:
         self.indent = ""
         self.vars = set()
         self.params = set(map(self.param, self.out_def.params))
+        # self._inc = 0
 
     def __lshift__(self, other: str):
+        # self.io.write(f'println({self._inc})\n')
+        # self._inc += 1
+
         self.io.write(self.indent)
         self.io.write(other)
         self.io.write("\n")
@@ -62,7 +71,7 @@ class Codegen:
 
     @staticmethod
     def uint64(i):
-        return f"{i:#0{18}x}"
+        return u64i(i)
 
     def val(self, v: Union[S, D]):
         if isinstance(v, S):
@@ -71,15 +80,18 @@ class Codegen:
                 a = repr(base)
                 return a
             # get object from address
-            return f"@DIO_Obj({self.uint64(id(v.base))}) #= {repr(v.base).replace('=#', '//=//#')} =#"
+            return f"{splice(v.base)} #= {repr(v.base).replace('=#', '//=//#')} =#"
 
         return self.var(v)
 
     def call(self, x: Out_Expr, dealloc_args: bool = False):
-        if isinstance(x, AbsVal):
+        if isinstance(x, str):
+            # see 'diojit.prescr.lit'
+            return x
+        elif isinstance(x, AbsVal):
             return self.val(x)
-        f = self.call(x.func)
 
+        f = self.call(x.func)
         args = ", ".join(self.call(arg, True) for arg in x.args)
         if dealloc_args:
             return f"@DIO_ChkExc({f}({args}))"
@@ -94,7 +106,7 @@ class Codegen:
             func_body = self.io.getvalue()
         self.io = StringIO()
         params = ", ".join(map(self.param, self.out_def.params))
-        self << f"function {spec_info.abs_jit_func}({params})"
+        self << f"DIO.@codegen DIO.@q function {spec_info.abs_jit_func}({params})"
         sorted_vars = sorted(self.vars)
         for var in sorted_vars:
             self << f"    {var} = DIO_Undef"
@@ -103,7 +115,8 @@ class Codegen:
         # TODO: add traceback
         self << "    DIO_Return = Py_NULL"
         self @ "@label ret"
-        for var in sorted_vars:
+        for i, var in enumerate(sorted_vars):
+            self << f'    @DIO_SetLineno {i + 1} "{var}"'
             self << f"    DIO_DecRef({var})"
         self << "    return DIO_Return"
         self << "end"
@@ -179,7 +192,12 @@ class Codegen:
                 ")"
             )
         self << (
-            f"const PyFunc_{spec_info.abs_jit_func} = PyCFunction_New(pointer_from_objref(PyMeth_{spec_info.abs_jit_func}), Py_NULL)"
+            f"const PyFunc_{spec_info.abs_jit_func} = "
+            f"PyCFunction_NewEx("
+            f"pointer_from_objref(PyMeth_{spec_info.abs_jit_func}),"
+            f"Py_NULL,"
+            f"Py_NULL,"
+            f")"
         )
         return self.io.getvalue()
 
@@ -197,11 +215,15 @@ class Codegen:
             self.visit(each)
 
     def visit(self, instr: Out_Instr):
-        if isinstance(instr, Out_Assign):
+        if isinstance(instr, Out_SetLineno):
+            filename = json.dumps(instr.filename).replace("$", "\\$")
+            self << f"@DIO_SetLineno {instr.line} {filename}"
+            pass
+        elif isinstance(instr, Out_Assign):
             var = self.var(instr.target)
-            self << f"DIO_DecRef({var})"
             val = self.call(instr.expr)
-            self << f"{var} = {val}"
+            assert isinstance(instr.expr, Out_Call)
+            self << f"{var} = let TMP = {val}; DIO_DecRef({var}); TMP end"
             return
         elif isinstance(instr, Out_Label):
             self @ f"@label {instr.label}"
@@ -215,7 +237,7 @@ class Codegen:
             return
         elif isinstance(instr, Out_If):
             val = self.val(instr.test)
-            self << f"if {self.uint64(id(True))} === reinterpret(UInt64, {val})"
+            self << f"if {u64o(True)} === reinterpret(UInt64, {val})"
             self << f"    @goto {instr.t}"
             self << "else"
             self << f"    @goto {instr.f}"
@@ -224,15 +246,32 @@ class Codegen:
 
         elif isinstance(instr, Out_TypeCase):
             val = self.val(instr.obj)
-            x = "__type__"
             self << f"__type__ = reinterpret(UInt64, Py_TYPE({val}))"
+            cases = instr.cases
+            has_any_type = Top in cases
+            if has_any_type and len(cases) == 1:
+                self.visit_many(cases[Top])
+                return
+            ts = []
+            headers = chain(["if"], repeat("elseif"))
             for i, (typecase, block) in enumerate(instr.cases.items()):
-                head = i == 0 and "if" or "elseif"
-                t = typecase.type.base
+                if typecase is Top:
+                    continue
+                head = next(headers)
+                ts.append(typecase)
+                t = ts[-1].base
                 self << f"# when type is {t}"
-                self << f"{head} __type__ === {self.uint64(id(t))}"
+                self << f"{head} __type__ === {u64o(t)}"
                 with self.indent_inc():
                     self.visit_many(block)
+            if not has_any_type:
+                # msg = ",".join(map(repr, ts))
+                self << "else"
+                self << '    error("analyser produces incorrect return")'
+            else:
+                self << "else"
+                with self.indent_inc():
+                    self.visit_many(cases[Top])
             self << "end"
             return
         elif isinstance(instr, Out_Error):

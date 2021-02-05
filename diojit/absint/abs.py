@@ -53,6 +53,7 @@ __all__ = [
     "In_Def",
     "In_Move",
     "In_Goto",
+    "In_SetLineno",
     "In_Bind",
     "In_Stmt",
     "In_Blocks",
@@ -67,6 +68,7 @@ __all__ = [
     "Out_If",
     "Out_Assign",
     "Out_Error",
+    "Out_SetLineno",
     "Out_Instr",
     "Out_Expr",
     "print_out",
@@ -80,7 +82,7 @@ __all__ = [
 
 
 class Out_Callable:
-    def __call__(self, *args):
+    def __call__(self, *args: AbsVal):
         # noinspection PyTypeChecker
         return Out_Call(self, args)
 
@@ -175,7 +177,7 @@ class S(Out_Callable, AbsVal):
             return False
         if self.base == other.base:
             return self.params < other.params
-        return self.base < other.base
+        return hash(self.base) < hash(other.base)
 
     @property
     def type(self):
@@ -354,6 +356,15 @@ class In_Goto:
 
 
 @dataclasses.dataclass(frozen=True)
+class In_SetLineno:
+    line: int
+    filename: str
+
+    def __repr__(self):
+        return f"# line {self.line} at {self.filename}"
+
+
+@dataclasses.dataclass(frozen=True)
 class In_Cond:
     test: AbsVal
     then: str
@@ -373,8 +384,10 @@ class In_Return:
         return f"return {self.value!r}"
 
 
-In_Stmt = Union[In_Cond, In_Goto, In_Move, In_Return, In_Bind]
-In_Blocks = 'dict[str, list[In_Stmt]]'
+In_Stmt = Union[
+    In_Cond, In_SetLineno, In_Goto, In_Move, In_Return, In_Bind
+]
+In_Blocks = "dict[str, list[In_Stmt]]"
 
 
 def print_in(b: In_Blocks, print=print):
@@ -388,8 +401,7 @@ def print_in(b: In_Blocks, print=print):
 class In_Def:
     narg: int
     blocks: In_Blocks
-    name: str
-    glob: dict
+    _func: FunctionType
     static_glob: set[str]
 
     UserCodeDyn = {}  # type: dict[FunctionType, In_Def]
@@ -400,6 +412,21 @@ class In_Def:
         print(f'def {self.name}({",".join(args)})', "{")
         print_in(self.blocks, print=lambda *x: print("", *x))
         print("}")
+
+    @property
+    def func(self) -> FunctionType:
+        """this is for hacking PyCharm's type checker"""
+        # noinspection PyTypeChecker
+        return self._func
+
+    @property
+    def name(self) -> str:
+        return self.func.__name__
+
+    @property
+    def glob(self) -> dict:
+        # noinspection PyUnresolvedReferences
+        return self.func.__globals__
 
 
 @dataclasses.dataclass(unsafe_hash=True)
@@ -417,7 +444,7 @@ Out_Expr = Union[Out_Call, AbsVal]
 @dataclasses.dataclass(frozen=True)
 class Out_Assign:
     target: D
-    expr: Out_Expr
+    expr: Out_Call
 
     def show(self, prefix, print):
         print(f"{prefix}{self.target} = {self.expr!r}")
@@ -478,6 +505,15 @@ class Out_Return:
         print(f"{prefix}return {self.value!r}")
 
 
+@dataclasses.dataclass(frozen=True)
+class Out_SetLineno:
+    line: int
+    filename: str
+
+    def show(self, prefix, print):
+        print(f"{prefix}# line {self.line} at {self.filename}")
+
+
 Out_Instr = Union[
     Out_Label,
     Out_TypeCase,
@@ -489,7 +525,7 @@ Out_Instr = Union[
 ]
 
 
-CallRecord = 'tuple[FunctionType, tuple[AbsVal, ...]]'
+CallRecord = "tuple[FunctionType, tuple[AbsVal, ...]]"
 
 
 def print_out(xs: Iterable[Out_Instr], prefix, print):
@@ -503,9 +539,13 @@ class Out_Def:
     params: tuple[AbsVal, ...]
     instrs: tuple[Out_Instr, ...]
     start: str
-    name: str
+    func: FunctionType
 
     GenerateCache = OrderedDict()  # type: dict[Intrinsic, Out_Def]
+
+    @property
+    def name(self) -> str:
+        return self.func.__name__
 
     def show(self, print=print):
         ret_types = self.spec.possibly_return_types
@@ -545,21 +585,22 @@ class CallSpec:
 RecTraces: set[tuple[str, tuple[AbsVal, ...]]] = set()
 
 ## specialisations map
-## return types not inferred but compiled function name
-PreSpecMaps: dict[CallRecord, str] = {}
+## return types not inferred but compiled function name, and partially inferenced types
+PreSpecMaps: dict[CallRecord, tuple[str, set[AbsVal, ...]]] = {}
 
 ## cache return types and function address
 SpecMaps: dict[CallRecord, JITSpecInfo] = {}
 
 
-def prespec_name(key: CallRecord, name=""):
+def mk_prespec_name(key: CallRecord, partial_returns: set[AbsVal], name=""):
     v = PreSpecMaps.get(key)
     if v is None:
         i = len(PreSpecMaps)
         n = f"J_{name.replace('_', '__')}_{i}"
-        PreSpecMaps[key] = n
+        PreSpecMaps[key] = n, partial_returns
         return n
-    return v
+    return v[0]
+
 
 
 @dataclasses.dataclass(frozen=True)
@@ -625,15 +666,22 @@ def judge_coerce(a, t: NonD):
     if t is Bot:
         return [], Bot
     if isinstance(a, D):
+        # noinspection PyUnboundLocalVariable
         if (
             isinstance(t, S)
             and (shape := t.shape)
-            and (inst := shape.instance(t.params))
+            and (inst := shape.instance)
         ):
+            # noinspection PyTypeHints
             # noinspection PyUnboundLocalVariable
+            if isinstance(inst, AbsVal):
+                # noinspection PyUnboundLocalVariable
+                return [], inst
+            # noinspection PyUnboundLocalVariable
+            inst = inst(t.params)
             return [], inst
         a_t = D(a.i, t)
-        return [Out_Assign(a_t, a)], a_t
+        return [], a_t
     return [], a
 
 
@@ -652,7 +700,7 @@ def blocks_to_instrs(blocks: dict[str, list[Out_Instr]], start: str):
 
 
 class Judge:
-    def __init__(self, blocks: In_Blocks, glob, abs_glob):
+    def __init__(self, blocks: In_Blocks, func: FunctionType, abs_glob):
         # States
         self.in_blocks = blocks
         self.block_map: dict[tuple[str, Local], str] = {}
@@ -660,8 +708,13 @@ class Judge:
         self.code: list[Out_Instr] = []
         self.out_blocks: dict[str, list[Out_Instr]] = OrderedDict()
         self.abs_glob: dict[str, AbsVal] = abs_glob
-        self.glob: dict = glob
+        self.func = func
         self.label_cnt = 0
+
+    @property
+    def glob(self) -> dict:
+        # noinspection PyUnresolvedReferences
+        return self.func.__globals__
 
     @contextmanager
     def use_code(self, code: list[Out_Instr]):
@@ -696,7 +749,10 @@ class Judge:
 
     def stmt(self, local: Local, xs: Sequence[In_Stmt], index: int):
         try:
-            hd = xs[index]
+            while (hd := xs[index]) and isinstance(hd, In_SetLineno):
+                self << Out_SetLineno(hd.line, hd.filename)
+                index += 1
+
             # print(hd, local.store)
         except IndexError:
             # TODO
@@ -796,7 +852,10 @@ class Judge:
             if len(union_types) == 1:
                 a_t = union_types[0]
                 a_spec = D(j, a_t)
-                self << Out_Assign(a_spec, e_call)
+                if isinstance(e_call, Out_Call):
+                    self << Out_Assign(a_spec, e_call)
+                    # TODO: documenting that 'D(i, t1)' means 'D(i, t2)'
+                    #  at a given program counter.
                 if a_t is Bot:
                     self << Out_Error()
                     return
@@ -811,8 +870,8 @@ class Judge:
                 return
             # 3. CALL happens, union-typed;
             # result might be a constant for each type
-
             a_union = D(j, Top)
+            self << Out_Assign(a_union, e_call)
             # TODO: Top(if any) should be put in the last of 'union_types'
             split = [judge_coerce(a_union, t) for t in union_types]
             cases: list[tuple[S, list[Out_Instr]]] = []
@@ -976,14 +1035,17 @@ def ufunc_spec(self, a_func: AbsVal, *arguments: AbsVal) -> CallSpec:
         e_call = spec.abs_jit_func(*arguments)
         ret_types = spec.possibly_return_types
         instance = spec.instance
-    elif call_record in PreSpecMaps:
-        jit_func_name = prespec_name(call_record)
+    elif partial_spec := PreSpecMaps.get(call_record):
+        jit_func_name, partial_returns = partial_spec
         abs_jit_func = S(intrinsic(jit_func_name))
         e_call = abs_jit_func(*arguments)
-        ret_types = (Top,)
+        partial_return_types = set(each.type for each in partial_returns)
+        partial_return_types.add(Top)
+        ret_types = tuple(sorted(partial_return_types))
         instance = None
     else:
-        jit_func_name = prespec_name(call_record, name=in_def.name)
+        partial_returns = set()
+        jit_func_name = mk_prespec_name(call_record, partial_returns, name=in_def.name)
 
         abs_glob = {}
         for glob_name in in_def.static_glob:
@@ -998,8 +1060,9 @@ def ufunc_spec(self, a_func: AbsVal, *arguments: AbsVal) -> CallSpec:
             abs_glob[glob_name] = a_v
 
         sub_judge = Judge(
-            blocks=in_def.blocks, glob=in_def.glob, abs_glob=abs_glob
+            blocks=in_def.blocks, func=in_def.func, abs_glob=abs_glob
         )
+        sub_judge.returns = partial_returns
         local = Local(pyrsistent.pvector(mem), pyrsistent.pmap(store))
         gen_start = sub_judge.jump(local, "entry")
         instrs = blocks_to_instrs(sub_judge.out_blocks, gen_start)
@@ -1014,7 +1077,7 @@ def ufunc_spec(self, a_func: AbsVal, *arguments: AbsVal) -> CallSpec:
         intrin = intrinsic(jit_func_name)
         spec_info = JITSpecInfo(instance, S(intrin), ret_types)
         out_def = Out_Def(
-            spec_info, parameters, tuple(instrs), gen_start, in_def.name
+            spec_info, parameters, tuple(instrs), gen_start, in_def.func
         )
         Out_Def.GenerateCache[intrin] = out_def
         e_call = spec_info.abs_jit_func(*arguments)

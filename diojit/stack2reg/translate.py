@@ -87,6 +87,8 @@ class PyC:
         self.blocks: In_Blocks = {"entry": entry_block}
         self.block_maps: _t.Dict[_t.Tuple[int, int], str] = {}
         self.label_cnt = 0
+        self.lastlinenumber = None
+        self.filename = code.co_filename
 
     def make(self):
         self.interp(0)
@@ -175,6 +177,10 @@ class PyC:
     def interp(self, offset=0):
         while True:
             x: dis.Instruction = self.cur()
+            if x.starts_line is not None and x.starts_line != self.lastlinenumber:
+                line = x.starts_line
+                self.codegen(In_SetLineno(line, self.filename))
+
             if self.is_jump_target(x.offset) and self.offset != offset:
                 label = self.jump(self.offset)
                 self.codegen(In_Goto(label))

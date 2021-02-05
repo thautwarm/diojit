@@ -5,12 +5,25 @@ import warnings
 import typing
 import operator
 import math
+import builtins
+
+
 if typing.TYPE_CHECKING:
     from mypy_extensions import VarArg
 
 _undef = object()
 
 __all__ = ["create_shape", "register"]
+
+
+def lit(x: str):
+    """directly pass this string to the backend"""
+    return typing.cast(AbsVal, x)
+
+
+def u64i(i: int):
+    """uint64 from integer"""
+    return f"{i:#0{18}x}"
 
 
 def create_shape(o: object, oop: bool = False, instance=_undef):
@@ -91,16 +104,38 @@ def py_call_intrinsic(
     Intrinsic.Py_LoadGlobal, "__call__", create_shape=dict(oop=False)
 )
 def py_load_global(self: Judge, a_str: AbsVal) -> CallSpec:
+    """
+    TODO: S(self.glob) is UNSAFE here.
+    Theoretically, 'S' shall not be used for
+    a mutable data. This is a special case.
+    """
 
-    if a_str.is_literal() and isinstance(a_str.base, str):
-        attr = a_str.base
-        if attr in self.abs_glob:
-            a = self.abs_glob[attr]
-            return CallSpec(None, a, possibly_return_types=(a.type,))
-        return CallSpec(None, S(Intrinsic.Py_LoadGlobal)(a_str), (Top,))
-    return CallSpec(
-        None, S(Intrinsic.Py_Raise)(S(NameError)(a_str)), (Bot,)
-    )
+    def slow_path():
+        instance = None
+        func = S(intrinsic("PyDict_LoadGlobal"))
+        e_call = func(S(self.func), S(builtins), a_str)
+        ret_types = (Top,)
+        return CallSpec(instance, e_call, ret_types)
+
+    def constant_key_path():
+        instance = None
+        hash_val = hash(a_str.base)
+        func = S(intrinsic("PyDict_LoadGlobal_KnownHash"))
+        e_call = func(
+            S(self.func), S(builtins), a_str, lit(str(hash_val))
+        )
+        ret_types = (Top,)
+        return CallSpec(instance, e_call, ret_types)
+
+    if a_str.is_literal():
+        if isinstance(a_str.base, str):
+            attr = a_str.base
+            if attr in self.abs_glob:
+                a = self.abs_glob[attr]
+                return CallSpec(a, a, possibly_return_types=(a.type,))
+
+            return constant_key_path()
+    return slow_path()
 
 
 create_shape(bool, oop=True)
@@ -148,6 +183,7 @@ def spec_pow(self: Judge, l: AbsVal, r: AbsVal):
             py_int_power_int = S(intrinsic("Py_IntPowInt"))
             return_types = tuple({Values.A_Int})
             constant_result = None  # no constant result
+
             return CallSpec(
                 constant_result, py_int_power_int(l, r), return_types
             )
@@ -165,6 +201,14 @@ def spec_add(self: Judge, l: AbsVal, r: AbsVal):
                 constant_result, py_int_add_int(l, r), return_types
             )
     return NotImplemented
+
+
+@register(operator.__le__, create_shape=True)
+def spec_add(self: Judge, l: AbsVal, r: AbsVal):
+    func = S(Intrinsic.Py_CallFunction)
+    return CallSpec(
+        None, func(S(operator.__le__), l, r), tuple({Values.A_Bool})
+    )
 
 
 @register(math.sqrt, create_shape=True)
