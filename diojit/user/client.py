@@ -13,6 +13,10 @@ __all__ = [
 ]
 
 
+def _is_function(o):
+    return isinstance(o, type(_is_function))
+
+
 def jit(
     func: absint.FunctionType = None,
     fixed_references: Iterable[str] = None,
@@ -51,6 +55,11 @@ class Val:
 def jit_spec_call_ir(
     f: absint.FunctionType, *args, attr="__call__", glob=None
 ):
+    narg = f.__code__.co_argcount
+    assert (
+        _is_function(f) and len(args) == narg
+    ), f"Function {f} takes exactly {narg} arguments."
+
     rt_map = []
     a_args = []
     for arg in args:
@@ -81,6 +90,10 @@ def jit_spec_call(
 
         _code_gen = code_gen
 
+    narg = f.__code__.co_argcount
+    assert (
+        _is_function(f) and len(args) == narg
+    ), f"Function {f} takes exactly {narg} arguments."
     rt_map = []
     a_args = []
     for arg in args:

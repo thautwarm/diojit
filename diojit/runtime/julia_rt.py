@@ -13,8 +13,10 @@ from julia.libjulia import LibJulia
 from julia.juliainfo import JuliaInfo
 from julia.find_libpython import find_libpython
 from ..absint.abs import Out_Def as _Out_Def
-from ..codegen.julia import Codegen, u64o
+from ..codegen.julia import Codegen, u64o, splice
+import ctypes
 
+pydll_address = hex(ctypes.pythonapi._handle)
 GenerateCache = _Out_Def.GenerateCache
 
 
@@ -94,7 +96,7 @@ class JuliaException(Exception):
         self.msg = msg
 
     def __repr__(self):
-        return self.msg
+        return f"from julia: {self.msg}"
 
 
 def check_jl_err(libjl: LibJulia):
@@ -118,33 +120,36 @@ def startup():
     libjl.jl_eval_string(b"using DIO")
     check_jl_err(libjl)
 
+    import builtins
+
     libjl.jl_eval_string(
         str.encode(
             f"const PyO = PyOType("
             f"PY_VERSION = Tuple({json.dumps(sys.version_info)}),"
-            f"bool = @DIO_Obj({u64o(bool)}),"
-            f"int = @DIO_Obj({u64o(int)}),"
-            f"float = @DIO_Obj({u64o(float)}),"
-            f"str = @DIO_Obj({u64o(str)}),"
-            f"type = @DIO_Obj({u64o(type)}),"
-            f"True = @DIO_Obj({u64o(True)}),"
-            f"False = @DIO_Obj({u64o(False)}),"
-            f"None = @DIO_Obj({u64o(None)}),"
-            f"complex = @DIO_Obj({u64o(complex)}),"
-            f"tuple = @DIO_Obj({u64o(tuple)}),"
-            f"list = @DIO_Obj({u64o(list)}),"
-            f"set = @DIO_Obj({u64o(set)}),"
-            f"dict = @DIO_Obj({u64o(dict)}),"
-            f"import_module = @DIO_Obj({u64o(importlib.import_module)}),"
+            f"builtins = {splice(builtins)},"
+            f"print = {splice(print)},"
+            f"bool = {splice(bool)},"
+            f"int = {splice(int)},"
+            f"float = {splice(float)},"
+            f"str = {splice(str)},"
+            f"type = {splice(type)},"
+            f"True = {splice(True)},"
+            f"False = {splice(False)},"
+            f"None = {splice(None)},"
+            f"complex = {splice(complex)},"
+            f"tuple = {splice(tuple)},"
+            f"list = {splice(list)},"
+            f"set = {splice(set)},"
+            f"dict = {splice(dict)},"
+            f"import_module = {splice(importlib.import_module)},"
             f")",
             encoding="utf-8",
         )
     )
     check_jl_err(libjl)
 
-    libpython_path = posixpath.join(*find_libpython().split(os.sep))
     libjl.jl_eval_string(
-        b"DIO.@setup(%s)" % dumps(libpython_path).encode("utf-8")
+        b"DIO.@setup(%s)" % pydll_address.encode("utf-8")
     )
     check_jl_err(libjl)
     libjl.jl_eval_string(b"printerror(x) = println(showerror(x))")
