@@ -11,7 +11,7 @@ import julia.libjulia as jl_libjulia
 from json import dumps
 from julia.libjulia import LibJulia
 from julia.juliainfo import JuliaInfo
-from julia.find_libpython import find_libpython
+from typing import Union
 from ..absint.abs import Out_Def as _Out_Def
 from ..codegen.julia import Codegen, u64o, splice
 import ctypes
@@ -192,10 +192,10 @@ def code_gen(print_jl=None):
         libjl.jl_eval_string(definition)
         check_jl_err(libjl)
     if print_jl:
+        print("# interfaces")
         print_jl(interfaces.decode("utf-8"))
     libjl.jl_eval_string(bytes(interfaces))
     check_jl_err(libjl)
-
     for intrin in GenerateCache:
         v = libjl.jl_eval_string(
             b"PyFunc_%s" % repr(intrin).encode("utf-8")
@@ -204,6 +204,13 @@ def code_gen(print_jl=None):
         intrin._callback = as_py(v)
 
     GenerateCache.clear()
+
+
+def jl_eval(s: Union[str, bytes]):
+    if isinstance(s, str):
+        s = s.encode("utf-8")
+    libjl.jl_eval_string(s)
+    check_jl_err(libjl)
 
 
 startup()

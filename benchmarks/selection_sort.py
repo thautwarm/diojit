@@ -39,8 +39,8 @@ def swap(xs, min_i, i):
 
 
 @jit.jit(fixed_references=["argmin", "swap", "len"])
-def msort(ys):
-    xs = ys.copy()
+def msort(xs):
+    xs = xs.copy()
     n = len(xs)
     i = 0
     while i < n:
@@ -58,7 +58,7 @@ def mwe(xs):
 jit_msort = jit.jit_spec_call(
     msort,
     jit.oftype(list),
-    # print_dio_ir=print,
+    print_dio_ir=print,
 )
 
 
@@ -68,6 +68,7 @@ print(
     "pure py:",
     timeit.timeit("f(xs)", globals=dict(xs=xs, f=msort), number=10000),
 )
+
 print(
     "jit:",
     timeit.timeit(

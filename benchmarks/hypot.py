@@ -39,7 +39,7 @@ hypot_spec = jit.jit_spec_call(
     hypot,
     jit.oftype(int),
     jit.oftype(int),
-    # print_jl=print,
+    print_jl=print,
     # print_dio_ir=print,
 )
 # #

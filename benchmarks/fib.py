@@ -6,6 +6,7 @@ fib(15) (jit+inferred) bench time: 0.1776359000000003
 import diojit as jit
 from inspect import getsource
 import timeit
+from diojit.runtime.julia_rt import splice, jl_eval
 
 
 def fib(a):
@@ -21,9 +22,13 @@ def fib_fix(a):
     return fib_fix(a + -1) + fib_fix(a + -2)
 
 
+jit_fib_fix_typed = jit.jit_spec_call(
+    fib_fix,
+    jit.oftype(int),
+    print_jl=print,
+)
 jit_fib_fix_untyped = jit.jit_spec_call(fib_fix, jit.Top)
-jit_fib_fix_typed = jit.jit_spec_call(fib_fix, jit.oftype(int))
-# jl_eval(f"println(J_fib__fix_1({splice(50)}))")
+jl_eval(f"println(J_fib__fix_1({splice(20)}))")
 # check_jl_err(libjl)
 print("fib".center(70, "="))
 print(getsource(fib))

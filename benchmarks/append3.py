@@ -4,6 +4,7 @@ append3 (pure py) bench time: 2.9313146
 """
 import diojit as jit
 from inspect import getsource
+from diojit.runtime.julia_rt import jl_eval, splice
 import timeit
 
 
@@ -18,7 +19,16 @@ print("append3".center(70, "="))
 print(getsource(append3))
 
 # jit.In_Def.UserCodeDyn[append3].show()
-jit_append3 = jit.jit_spec_call(append3, jit.oftype(list), jit.Top)
+jit_append3 = jit.jit_spec_call(
+    append3,
+    jit.oftype(list),
+    jit.Top,
+    # print_dio_ir=print,
+)
+x = [1]
+y = 2
+# jl_eval(f"println(J_append3_0({splice(x)}, {splice(y)}))")
+# raise
 xs = [1]
 jit_append3(xs, 3)
 print("test jit func: [1] append 3 for 3 times =", xs)

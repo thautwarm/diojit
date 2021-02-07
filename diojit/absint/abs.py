@@ -14,6 +14,7 @@ from typing import (
     Sequence,
     TypeVar,
     Type,
+    NamedTuple,
     TYPE_CHECKING,
     cast,
 )
@@ -67,10 +68,9 @@ __all__ = [
     "Out_TypeCase",
     "Out_If",
     "Out_Assign",
-    "Out_Error",
     "Out_SetLineno",
+    "Out_DecRef",
     "Out_Instr",
-    "Out_Expr",
     "print_out",
     "print_in",
     "from_runtime",
@@ -302,8 +302,8 @@ class Shape:
     fields: dict[str, Union[AbsVal, types.FunctionType]]
     # some type has unique instance
     # None.__class__ has None only
-    instance: Callable[
-        [tuple[NonD, ...]], Optional[AbsVal]
+    instance: Union[
+        None, S, Callable[[tuple[NonD, ...]], Optional[S]]
     ] = dataclasses.field(default=None)
 
 
@@ -437,23 +437,23 @@ class In_Def:
 
 @dataclasses.dataclass(unsafe_hash=True)
 class Out_Call(Out_Callable):
-    func: Out_Expr
-    args: tuple[Out_Expr, ...]
+    func: AbsVal
+    args: tuple[AbsVal, ...]
 
     def __repr__(self):
         return f"{self.func!r}{self.args!r}"
-
-
-Out_Expr = Union[Out_Call, AbsVal]
 
 
 @dataclasses.dataclass(frozen=True)
 class Out_Assign:
     target: D
     expr: Out_Call
+    decrefs: tuple[int, ...]
 
     def show(self, prefix, print):
+        decrefs = ",".join(f"D{i}" for i in self.decrefs)
         print(f"{prefix}{self.target} = {self.expr!r}")
+        print(f"{prefix}when err: decref [{decrefs}] ")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -498,17 +498,22 @@ class Out_Goto:
 
 
 @dataclasses.dataclass(frozen=True)
-class Out_Error:
+class Out_Return:
+    value: AbsVal
+    decrefs: tuple[int, ...]
+
     def show(self, prefix, print):
-        print(f"{prefix}error!")
+        decrefs = ",".join(f"D{i}" for i in self.decrefs)
+        print(f"{prefix}return {self.value!r}")
+        print(f"{prefix}and decref [{decrefs}]")
 
 
 @dataclasses.dataclass(frozen=True)
-class Out_Return:
-    value: AbsVal
+class Out_DecRef:
+    i: int
 
     def show(self, prefix, print):
-        print(f"{prefix}return {self.value!r}")
+        print(f"{prefix}decref D{self.i}")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -521,13 +526,13 @@ class Out_SetLineno:
 
 
 Out_Instr = Union[
+    Out_DecRef,
     Out_Label,
     Out_TypeCase,
     Out_If,
     Out_Assign,
     Out_Return,
     Out_Goto,
-    Out_Error,
 ]
 
 
@@ -580,21 +585,21 @@ class JITSpecInfo:
 @dataclasses.dataclass
 class CallSpec:
     instance: Optional[AbsVal]  # maybe return a constant instance
-    e_call: Out_Expr
+    e_call: Union[Out_Call, AbsVal]
     possibly_return_types: tuple[AbsVal, ...]
 
     def astuple(self):
         return self.instance, self.e_call, self.possibly_return_types
 
 
-## user function calls recorded here cannot be reanalyzed next time
+# user function calls recorded here cannot be reanalyzed next time
 RecTraces: set[tuple[str, tuple[AbsVal, ...]]] = set()
 
-## specialisations map
-## return types not inferred but compiled function name, and partially inferenced types
+# specialisations map
+# return types not inferred but compiled function name, and partially inferenced types
 PreSpecMaps: dict[CallRecord, tuple[str, set[AbsVal, ...]]] = {}
 
-## cache return types and function address
+# cache return types and function address
 SpecMaps: dict[CallRecord, JITSpecInfo] = {}
 
 
@@ -610,9 +615,14 @@ def mk_prespec_name(
     return v[0]
 
 
+class MemSlot(NamedTuple):
+    refcnt: int
+    is_locally_allocated: bool
+
+
 @dataclasses.dataclass(frozen=True)
 class Local:
-    mem: pyrsistent.PVector[int]
+    mem: pyrsistent.PVector[MemSlot]
     store: pyrsistent.PMap[int, AbsVal]
 
     def up_mem(self, mem):
@@ -625,35 +635,10 @@ class Local:
 def alloc(local: Local):
     i = -1
     for i, each in enumerate(local.mem):
-        if each == 0:
+        if each.refcnt == 0:
             return i
     i += 1
     return i
-
-
-def decref(local: Local, a: AbsVal):
-    if not isinstance(a, D):
-        return local
-    i = a.i
-    if i < len(local.mem):
-        mem = local.mem
-        mem = mem.set(i, max(mem[i] - 1, 0))
-        return local.up_mem(mem)
-    return local
-
-
-def incref(local: Local, a: AbsVal):
-    if not isinstance(a, D):
-        return local
-    i = a.i
-    mem = local.mem
-    try:
-        ref = mem[i]
-        mem = mem.set(i, ref + 1)
-    except IndexError:
-        assert len(mem) == i
-        mem = mem.append(1)
-    return local.up_mem(mem)
 
 
 def valid_value(x: AbsVal, mk_exc=None):
@@ -669,7 +654,12 @@ def judge_lit(local: Local, a: AbsVal):
     return a
 
 
-def judge_coerce(a, t: NonD):
+def try_spec_val_then_decref(a, t: NonD) -> tuple[list, AbsVal]:
+    """
+    A dynamic abstract value might have a singleton type,
+    in this case it's specialised into a static abstract vlaue.
+    e.g., a value whose type is 'type(None)' must be exactly 'None'.
+    """
     if t is Bot:
         return [], Bot
     if isinstance(a, D):
@@ -681,12 +671,12 @@ def judge_coerce(a, t: NonD):
         ):
             # noinspection PyTypeHints
             # noinspection PyUnboundLocalVariable
-            if isinstance(inst, AbsVal):
+            if isinstance(inst, S):
                 # noinspection PyUnboundLocalVariable
-                return [], inst
+                return [Out_DecRef(a.i)], inst
             # noinspection PyUnboundLocalVariable
             inst = inst(t.params)
-            return [], inst
+            return [Out_DecRef(a.i)], inst
         a_t = D(a.i, t)
         return [], a_t
     return [], a
@@ -704,6 +694,39 @@ def blocks_to_instrs(blocks: dict[str, list[Out_Instr]], start: str):
             instrs.append(Out_Label(label))
         instrs.extend(block)
     return instrs
+
+
+def decref(self: Judge, local: Local, a: AbsVal):
+    if not isinstance(a, D):
+        return local
+    i = a.i
+    if i < len(local.mem):
+        mem = local.mem
+        slot = mem[i]
+        if refcnt := slot.refcnt - 1:
+            slot = MemSlot(refcnt, slot.is_locally_allocated)
+        else:
+            if slot.is_locally_allocated:
+                self << Out_DecRef(i)
+            slot = MemSlot(0, True)
+        mem = mem.set(i, slot)
+        return local.up_mem(mem)
+    return local
+
+
+def incref(local: Local, a: AbsVal):
+    if not isinstance(a, D):
+        return local
+    i = a.i
+    mem = local.mem
+    try:
+        ref = mem[i]
+        slot = MemSlot(ref.refcnt + 1, ref.is_locally_allocated)
+        mem = mem.set(i, slot)
+    except IndexError:
+        assert len(mem) == i
+        mem = mem.append(MemSlot(1, True))
+    return local.up_mem(mem)
 
 
 class Judge:
@@ -769,10 +792,10 @@ class Judge:
             # print(hd, judge_lit(local, hd.source), local.store)
             a_y = judge_lit(local, hd.source)
             if a_y is Top or a_y is Bot:
-                self << Out_Error()
+                self.error(local)
                 return
 
-            local = decref(local, a_x)
+            local = decref(self, local, a_x)
             local = incref(local, a_y)
             local = local.up_store(local.store.set(hd.target.i, a_y))
             self.stmt(local, xs, index + 1)
@@ -782,13 +805,12 @@ class Judge:
         elif isinstance(hd, In_Return):
             a = valid_value(judge_lit(local, hd.value))
             self.returns.add(a)
-            self << Out_Return(a)
+            self << Out_Return(a, tuple(self.all_ownerships(local)))
         elif isinstance(hd, In_Cond):
             a = judge_lit(local, hd.test)
             if a is Top or a is Bot:
-                self << Out_Error()
+                self.error(local)
                 return
-
             if a.type == A_Bool:
                 a_cond = a
             else:
@@ -797,7 +819,7 @@ class Judge:
                     A_Bool, "__call__", [a]
                 ).astuple()
                 if e_call is Top or e_call is Bot:
-                    self << Out_Error()
+                    self.error(local)
                     return
 
                 if not isinstance(e_call, (Out_Call, D)):
@@ -805,7 +827,14 @@ class Judge:
                 else:
                     j = alloc(local)
                     a_cond = D(j, A_Bool)
-                    self << Out_Assign(a_cond, e_call)
+                    self << Out_Assign(
+                        a_cond,
+                        e_call,
+                        tuple(self.all_ownerships(local)),
+                    )
+
+                    self << Out_DecRef(j)
+
                 if instance:
                     a_cond = instance
 
@@ -822,7 +851,7 @@ class Judge:
             a_x = judge_lit(local, hd.target)
             a_subj = judge_lit(local, hd.sub)
             if a_subj is Top or a_subj is Bot:
-                self << Out_Error()
+                self.error(local)
                 return
             attr = judge_lit(local, hd.attr)
             assert attr.is_literal() and isinstance(
@@ -833,19 +862,18 @@ class Judge:
             for a in hd.args:
                 a_args.append(judge_lit(local, a))
                 if a_args[-1] in (Top, Bot):
-                    self << Out_Error()
+                    self.error(local)
                     return
-            local = decref(local, a_x)
             instance, e_call, union_types = self.spec(
                 a_subj, attr, a_args
             ).astuple()
-            # print(a_subj, 'returns', union_types)
 
             if e_call in (Top, Bot):
-                self << Out_Error()
+                self.error(local)
                 return
             # 1. no actual CALL happens
             if not isinstance(e_call, (Out_Call, D)):
+                local = decref(self, local, a_x)
                 rhs = e_call
                 if instance:
                     rhs = instance
@@ -861,15 +889,24 @@ class Judge:
                 a_t = union_types[0]
                 a_spec = D(j, a_t)
                 if isinstance(e_call, Out_Call):
-                    self << Out_Assign(a_spec, e_call)
+                    self << Out_Assign(
+                        a_spec,
+                        e_call,
+                        tuple(self.all_ownerships(local)),
+                    )
                     # TODO: documenting that 'D(i, t1)' means 'D(i, t2)'
                     #  at a given program counter.
+                local = decref(self, local, a_x)
                 if a_t is Bot:
-                    self << Out_Error()
+                    self.error(local)
                     return
                 a_t = a_spec.type
-                _, a_spec = judge_coerce(a_spec, a_t)  # handle instance
+                code, a_spec = try_spec_val_then_decref(
+                    a_spec, a_t
+                )  # handle instance
                 valid_value(a_spec)
+                if code:
+                    self << code[0]
                 local = incref(local, a_spec)
                 local = local.up_store(
                     local.store.set(hd.target.i, a_spec)
@@ -879,14 +916,20 @@ class Judge:
             # 3. CALL happens, union-typed;
             # result might be a constant for each type
             a_union = D(j, Top)
-            self << Out_Assign(a_union, e_call)
+            self << Out_Assign(
+                a_union, e_call, tuple(self.all_ownerships(local))
+            )
+            local = decref(self, local, a_x)
             # TODO: Top(if any) should be put in the last of 'union_types'
-            split = [judge_coerce(a_union, t) for t in union_types]
+            split = [
+                try_spec_val_then_decref(a_union, t)
+                for t in union_types
+            ]
             cases: list[tuple[S, list[Out_Instr]]] = []
             for (code, a_spec), a_t in zip(split, union_types):
                 cases.append((a_t, code))
                 if a_t is Bot:
-                    code.append(Out_Error())
+                    self.error(local)
                     continue
 
                 valid_value(a_spec)
@@ -1000,6 +1043,14 @@ class Judge:
             return default()
         return r
 
+    def all_ownerships(self, local: Local):
+        for i, each in enumerate(local.mem):
+            if each.refcnt and each.is_locally_allocated:
+                yield i
+
+    def error(self, local):
+        raise ValueError(local)
+
 
 def ufunc_spec(self, a_func: AbsVal, *arguments: AbsVal) -> CallSpec:
     a_func = valid_value(a_func)
@@ -1027,7 +1078,7 @@ def ufunc_spec(self, a_func: AbsVal, *arguments: AbsVal) -> CallSpec:
     for i, a_arg in enumerate(arguments):
         if isinstance(a_arg, D):
             j = len(mem)
-            mem.append(1)
+            mem.append(MemSlot(1, False))
             a_param = D(j, a_arg.type)
             parameters.append(a_param)
 
@@ -1079,13 +1130,22 @@ def ufunc_spec(self, a_func: AbsVal, *arguments: AbsVal) -> CallSpec:
         gen_start = sub_judge.jump(local, "entry")
         instrs = blocks_to_instrs(sub_judge.out_blocks, gen_start)
 
-        ret_types = tuple(sorted({r.type for r in sub_judge.returns}))
+        ret_types: tuple[AbsVal, ...] = tuple(
+            sorted({r.type for r in sub_judge.returns})
+        )
         instance, *is_union = sub_judge.returns
         instance = valid_value(instance)
-        if is_union:
-            instance = None
         if isinstance(instance, D):
             instance = None
+        elif is_union:
+            instance = None
+        else:
+            t = ret_types[0]
+            if t.is_s():
+                instance = t.shape.instance
+                if isinstance(instance, FunctionType):
+                    instance = instance(t.params)
+
         intrin = intrinsic(jit_func_name)
         spec_info = JITSpecInfo(instance, S(intrin), ret_types)
         SpecMaps[call_record] = spec_info

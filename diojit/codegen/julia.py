@@ -40,7 +40,6 @@ class Codegen:
         self.out_def = out_def
         self.io = StringIO()
         self.indent = ""
-        self.vars = set()
         self.params = set(map(self.param, self.out_def.params))
         # self._inc = 0
 
@@ -57,12 +56,11 @@ class Codegen:
         self.io.write(other)
         self.io.write("\n")
 
+    def var_i(self, i: int):
+        return f"x{i}"
+
     def var(self, target: D):
-        a = f"x{target.i}"
-        if a not in self.params:
-            # which will be decref-ed when leaving the function
-            self.vars.add(a)
-        return a
+        return self.var_i(target.i)
 
     def param(self, p: Union[S, D]):
         if isinstance(p, D):
@@ -73,7 +71,11 @@ class Codegen:
     def uint64(i):
         return u64i(i)
 
-    def val(self, v: Union[S, D]):
+    def val(self, v: Union[str, S, D]):
+        if isinstance(v, str):
+            # see 'diojit.prescr.lit'
+            return v
+
         if isinstance(v, S):
             base = v.base
             if isinstance(base, Intrinsic):
@@ -84,20 +86,13 @@ class Codegen:
 
         return self.var(v)
 
-    def call(self, x: Out_Expr, dealloc_args: bool = False):
-        if isinstance(x, str):
-            # see 'diojit.prescr.lit'
-            return x
-        elif isinstance(x, AbsVal):
-            return self.val(x)
-
-        assert isinstance(x.func, S) and isinstance(x.func.base, Intrinsic), x
-        f = self.call(x.func)
-        args = ", ".join(self.call(arg, True) for arg in x.args)
-        if dealloc_args:
-            return f"@DIO_ChkExc({f}({args}))"
-        else:
-            return f"@DIO_ChkExcAndDecRefSubCall({f}({args}))"
+    def call(self, x: Out_Call):
+        assert isinstance(x.func, S) and isinstance(
+            x.func.base, Intrinsic
+        ), x
+        f = self.val(x.func)
+        args = ", ".join(map(self.val, x.args))
+        return f, f"{f}({args})"
 
     def get_jl_definitions(self):
         self.io = StringIO()
@@ -108,99 +103,24 @@ class Codegen:
         self.io = StringIO()
         params = ", ".join(map(self.param, self.out_def.params))
         self << f"DIO.@codegen DIO.@q function {spec_info.abs_jit_func}({params})"
-        sorted_vars = sorted(self.vars)
-        for var in sorted_vars:
-            self << f"    {var} = DIO_Undef"
         self << func_body
         self @ "@label except"
         # TODO: add traceback
         self << "    DIO_Return = Py_NULL"
         self @ "@label ret"
-        for i, var in enumerate(sorted_vars):
-            self << f'    @DIO_SetLineno {i + 1} "{var}"'
-            self << f"    DIO_DecRef({var})"
         self << "    return DIO_Return"
         self << "end"
-        self << f"DIO.DIO_ExceptCode(::typeof({spec_info.abs_jit_func})) = Py_NULL"
-
         doc_io = StringIO()
         self.out_def.show(lambda *args: print(*args, file=doc_io))
         # function documentation
-        doc = doc_io.getvalue().replace("$", "\\$")
-        self << (
-            f"const DOC_{spec_info.abs_jit_func} = "
-            f"Base.unsafe_convert(Cstring, {json.dumps(doc)})"
-        )
+        doc = json.dumps(doc_io.getvalue()).replace("$", "\\$")
+        self << f"const DOC_{spec_info.abs_jit_func} = " f"{doc}"
         return self.io.getvalue()
 
     def get_py_interfaces(self):
-        self.io = StringIO()
         narg = len(self.out_def.params)
         spec_info = self.out_def.spec
-        if narg == 0:
-            self << (
-                f"CFunc_{spec_info.abs_jit_func}(_ :: PyPtr, ::PyPtr) = "
-                f"{spec_info.abs_jit_func}()"
-            )
-            self << (
-                f"const CFuncPtr_{spec_info.abs_jit_func} = "
-                f"@cfunction(CFunc_{spec_info.abs_jit_func}, PyPtr, (PyPtr, PyPtr)) "
-            )
-            self << (
-                f"const PyMeth_{spec_info.abs_jit_func} = PyMethodDef(\n"
-                f"    Base.unsafe_convert(Cstring, :{self.out_def.name}),\n"
-                f"    CFuncPtr_{spec_info.abs_jit_func},\n"
-                "    METH_NOARGS,\n"
-                f"    DOC_{spec_info.abs_jit_func}\n"
-                ")"
-            )
-
-        elif narg == 1:
-            self << (
-                f"CFunc_{spec_info.abs_jit_func}(_ :: PyPtr, o::PyPtr) = "
-                f"{spec_info.abs_jit_func}(o)"
-            )
-            self << (
-                f"const CFuncPtr_{spec_info.abs_jit_func} = "
-                f"@cfunction(CFunc_{spec_info.abs_jit_func}, PyPtr, (PyPtr, PyPtr)) "
-            )
-
-            self << (
-                f"const PyMeth_{spec_info.abs_jit_func} = PyMethodDef(\n"
-                f"    Base.unsafe_convert(Cstring, :{self.out_def.name}),\n"
-                f"    CFuncPtr_{spec_info.abs_jit_func},\n"
-                f"    METH_O,\n"
-                f"    DOC_{spec_info.abs_jit_func}\n"
-                ")"
-            )
-
-        else:
-            self << (
-                f"CFunc_{spec_info.abs_jit_func}(self :: PyPtr, args::Ptr{{PyPtr}}, n::Py_ssize_t) = "
-                f"@DIO_MakePyFastCFunc({spec_info.abs_jit_func}, args, n, {narg})"
-            )
-            self << (
-                f"const CFuncPtr_{spec_info.abs_jit_func} = "
-                f"@cfunction(CFunc_{spec_info.abs_jit_func}, PyPtr, (PyPtr, Ptr{{PyPtr}}, Py_ssize_t))"
-            )
-
-            self << (
-                f"const PyMeth_{spec_info.abs_jit_func} = PyMethodDef(\n"
-                f"    Base.unsafe_convert(Cstring, :{self.out_def.name}),\n"
-                f"    CFuncPtr_{spec_info.abs_jit_func},\n"
-                f"    METH_FASTCALL,\n"
-                f"    DOC_{spec_info.abs_jit_func}\n"
-                ")"
-            )
-        self << (
-            f"const PyFunc_{spec_info.abs_jit_func} = "
-            f"PyCFunction_NewEx("
-            f"pointer_from_objref(PyMeth_{spec_info.abs_jit_func}),"
-            f"Py_NULL,"
-            f"Py_NULL,"
-            f")"
-        )
-        return self.io.getvalue()
+        return f"@DIO_MakePtrCFunc {narg} {spec_info.abs_jit_func} {self.out_def.name}\n"
 
     @contextmanager
     def indent_inc(self):
@@ -222,9 +142,16 @@ class Codegen:
             pass
         elif isinstance(instr, Out_Assign):
             var = self.var(instr.target)
-            val = self.call(instr.expr)
             assert isinstance(instr.expr, Out_Call)
-            self << f"{var} = let TMP = {val}; DIO_DecRef({var}); TMP end"
+            f, val = self.call(instr.expr)
+            self << f"__tmp__ = {val}"
+            self << f"if __tmp__ === DIO_ExceptCode({f})"
+            for i in instr.decrefs:
+                self << f"    Py_DECREF({self.var_i(i)})"
+            self << r"    @goto except"
+            self << r"else"
+            self << f"    {var} = DIO_PyOrNone(__tmp__)"
+            self << r"end"
             return
         elif isinstance(instr, Out_Label):
             self @ f"@label {instr.label}"
@@ -234,7 +161,20 @@ class Codegen:
             return
         elif isinstance(instr, Out_Return):
             val = self.val(instr.value)
-            self << f"@DIO_Return DIO_IncRef({val})"
+            self << f"DIO_Return = {val}"
+            mini_opt = False
+            if isinstance(instr.value, D):
+                hold = instr.value.i
+                if hold in instr.decrefs:
+                    mini_opt = True
+                    for i in instr.decrefs:
+                        if i != hold:
+                            self << f"Py_DECREF({self.var_i(i)})"
+            if not mini_opt:
+                self << f"Py_INCREF(DIO_Return)"
+                for i in instr.decrefs:
+                    self << f"Py_DECREF({self.var_i(i)})"
+            self << f"@goto ret"
             return
         elif isinstance(instr, Out_If):
             val = self.val(instr.test)
@@ -275,7 +215,5 @@ class Codegen:
                     self.visit_many(cases[Top])
             self << "end"
             return
-        elif isinstance(instr, Out_Error):
-            # TODO: set debug info like: lineno, fileno...
-            self << "@goto except"
-            return
+        elif isinstance(instr, Out_DecRef):
+            self << f"Py_DECREF({self.var_i(instr.i)})"

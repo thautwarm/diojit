@@ -86,14 +86,14 @@ def main2(out_io: bytearray):
 jit_main = jit.jit_spec_call(
     main2,
     jit.oftype(bytearray),
-    print_dio_ir=print,
+    # print_dio_ir=print,
 )
 # raise
 #
 x = bytearray()
 jl_eval(f"J_main2_0({splice(x)})")
 # raise
-
+print(main(bytearray()) == jit_main(bytearray()))
 print(
     timeit.timeit(
         "main(bytearray())",
