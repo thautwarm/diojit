@@ -1,6 +1,7 @@
 ## DIO-JIT:  Python的泛用jit
 
-[English](https://github.com/thautwarm/diojit/blob/master/README.md)
+[![README](https://img.shields.io/badge/i18n-English-teal)](https://github.com/thautwarm/diojit/blob/master/README.zh_CN.md) [![PyPI version shields.io](https://img.shields.io/pypi/v/diojit.svg)](https://pypi.python.org/pypi/diojit/) 
+[![JIT](https://img.shields.io/badge/cpython-3.8|3.9-green.svg)](https://pypi.python.org/pypi/diojit/)
 
 Important:
 

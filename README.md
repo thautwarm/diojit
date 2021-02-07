@@ -1,6 +1,7 @@
 ## DIO-JIT: General-purpose Python JIT
 
-[中文README](https://github.com/thautwarm/diojit/blob/master/README.zh_CN.md)
+[![中文README](https://img.shields.io/badge/i18n-%E4%B8%AD%E6%96%87%E6%96%87%E6%A1%A3-teal)](https://github.com/thautwarm/diojit/blob/master/README.zh_CN.md) [![PyPI version shields.io](https://img.shields.io/pypi/v/diojit.svg)](https://pypi.python.org/pypi/diojit/) 
+[![JIT](https://img.shields.io/badge/cpython-3.8|3.9-green.svg)](https://pypi.python.org/pypi/diojit/)
 
 Important:
 
