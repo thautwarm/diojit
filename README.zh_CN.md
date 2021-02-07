@@ -2,8 +2,11 @@
 
 [English](./README.md)
 
-注意, DIO-JIT目前只在Python>=3.8时工作。
+Important:
 
+1. 注意, DIO-JIT目前只在Python>=3.8时工作。我们高度依赖Python 3.8之后的`LOAD_METHOD`字节码指令。
+2. 在多数情况下来看，目前DIO-JIT不适合生产环境。我们还需要提供更多的特化规则，来让DIO-JIT变得开箱即用。
+3. 这个文档主要是为开发者提供的。用户不需要了解如何写特化规则，只需要使用`jit.jit(func_obj)`和`jit.jit_spec_call(func_obj, arg_specs...)`。
 
 <details><summary>安装</summary>
 <p>
