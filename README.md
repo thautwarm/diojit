@@ -1,6 +1,6 @@
 ## DIO-JIT: General-purpose Python JIT
 
-[中文README](./README.zh_CN.md)
+[中文README](https://github.com/thautwarm/diojit/blob/master/README.zh_CN.md)
 
 Important:
 

@@ -1,6 +1,6 @@
 ## DIO-JIT:  Python的泛用jit
 
-[English](./README.md)
+[English](https://github.com/thautwarm/diojit/blob/master/README.md)
 
 Important:
 
