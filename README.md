@@ -86,25 +86,30 @@ Usage from Python side is quite similar to that from Numba.
 ```python
 import diojit
 from math import sqrt
-@diojit.jit(fixed_references=["sqrt", "str", "int", "isinstance"])
-def hypot(x, y):
-    if isinstance(x, str):
-        x = int(x)
+# eagerjit: assuming all global references are fixed
+@diojit.eagerjit
+def fib(a):
+    if a <= 2:
+        return 1
+    return fib(a + -1) + fib(a + -2)
 
-    if isinstance(y, str):
-        y = int(y)
-
-    return sqrt(x ** 2 + y ** 2)
-
-specialized_hypot = diojit.jit_spec_call(hypot, diojit.oftype(int), diojit.oftype(int))
-specialized_hypot(1, 2) # 30% faster than CPython
+jit_fib = diojit.jit_spec_call(fib, diojit.oftype(int), diojit.oftype(int))
+jit_fib(15) # 600% faster than pure python
 ```
 
-DIO-JIT is a method JIT driven by abstract interpretation and call-site specialisation.
-Abstract interpretation is done by the compiler (`jit.absint.abs`).
-You can register new specialisation rules(and see examples) from (`jit.absint.prescr`).
+It might look strange to you that we use `a + -1` and `a + -2` here.
 
-We're able to optimise anything!
+Clever observation! And that's the point!
+
+DIO-JIT relies on specilisation rules. We have written one for additions, more specifically, `operator.__add__`: [specilisation for `operator.__add__`](https://github.com/thautwarm/diojit/blob/05a20be3cb0bbf543f6c5d9e154f73a0071cbfa2/diojit/absint/`prescr.py#L226).
+
+However, due to the bandwidth limitation, rules for `operator.__sub__` is not implemented yet.
+
+Although specilisation is common in the scope of optimisation, unlike many other JIT attempts, DIO-JIT doesn't need to
+hard encode rules at compiler level. The DIO-JIT compiler implements the skeleton of abstract interpretation, but concrete
+rules for specialisation and other inferences can be added within Python itself in an extensible way!
+  
+See an example below.
 
 ## Contribution Example: Add a specialisation rule for `list.append`
 
@@ -128,17 +133,31 @@ def list_append_analysis(self: jit.Judge, *args: jit.AbsVal):
     )
 ```
 
-2. Julia Side:
+
+`jit.intrinsic("PyList_Append")` mentioned in above code means the intrinsic provided by the Julia codegen backend.
+Usually it's calling a CPython C API, but sometimes may not.
+
+No matter if it is an existing CPython C API, we can implement intrinsics in Julia.
+
+
+- [import PyList_Append symbol](https://github.com/thautwarm/DIO.jl/blob/c3ec304645437da6bb02c9e5acb0c91e5e3800a8/src/symbols.jl#L53)
+
+- [generate PyList_Append calling convention](https://github.com/thautwarm/DIO.jl/blob/5fa79357798ff3eaee561d14d4f04a271213282c/src/dynamic.jl#L120):
     
-- [import 'Py_ListAppend' symbol](https://github.com/thautwarm/DIO.jl/blob/182a995cf0543007ef5d7089e5fdbbb8104f8e02/src/dynamic.jl#L32)
+    
+    ```julia
+    @autoapi PyList_Append(PyPtr, PyPtr)::Cint != Cint(-1) cast(_cint2none) nocastexc
+    ```
+    
+    As a consequence, we automatically generate an instrinsic function for DIO-JIT. This intrinsic function
+    is capable of handling CPython exception and reference counting.  
 
-- [calling convention for 'Py_ListAppend'](https://github.com/thautwarm/DIO.jl/blob/182a995cf0543007ef5d7089e5fdbbb8104f8e02/src/dynamic.jl#L50):
+You can either do step 2) at Python side. It might looks more intuitive.
 
-You can either do step 2) at Python side(for users other than DIO-JIT developers):
 ```python
 import diojit as jit
-from jit.runtime.julia_rt import jl_eval
-jl_implemented_intrinsic = b"""
+from diojit.runtime.julia_rt import jl_eval
+jl_implemented_intrinsic = """
 function PyList_Append(lst::Ptr, elt::PyPtr)
     if ccall(PyAPI.PyList_Append, Cint, (PyPtr, PyPtr), lst, elt) == -1
         return Py_NULL
@@ -148,7 +167,6 @@ end
 DIO.DIO_ExceptCode(::typeof(PyList_Append)) != Py_NULL
 """
 jl_eval(jl_implemented_intrinsic)
-
 ```
 
 You immediately get a >**100%** time speed up:
@@ -266,6 +284,8 @@ We prefer compiling JITed code with LLVM, and **Julia is quite a killer tool for
 5. Specifying fixed global references(`@diojit.jit(fixed_references=['isinstance', 'str', ...]`) too annoying?
 
     Sorry, you have to. We are thinking about the possibility about automatic JIT covering all existing CPython code, but the biggest impediment is the volatile global variables.
+
+    You might use `@eagerjit`, and in this case you'd be cautious in making global variables unchangeable.
 
     <details><summary>Possibility?</summary>
     <p>

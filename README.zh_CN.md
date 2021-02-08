@@ -3,6 +3,7 @@
 [![README](https://img.shields.io/badge/i18n-English-teal)](https://github.com/thautwarm/diojit/blob/master/README.zh_CN.md) [![PyPI version shields.io](https://img.shields.io/pypi/v/diojit.svg)](https://pypi.python.org/pypi/diojit/) 
 [![JIT](https://img.shields.io/badge/cpython-3.8|3.9-green.svg)](https://pypi.python.org/pypi/diojit/)
 
+DIO-JIT是一种 method JIT, 在抽象解释和调用点特化下成为可能。抽象解释由编译器实现，而特化规则可以扩展式地注册(例见`jit.absint.prescr`)。
 
 Important:
 
@@ -88,25 +89,31 @@ julia -e "using Pkg; Pkg.update(string(:DIO));using DIO"
 ```python
 import diojit
 from math import sqrt
+# eagerjit: 假设所有全局引用不变
 @diojit.eagerjit
-def hypot(x, y):
-    if isinstance(x, str):
-        x = int(x)
+def fib(a):
+    if a <= 2:
+        return 1
+    return fib(a + -1) + fib(a + -2)
 
-    if isinstance(y, str):
-        y = int(y)
-
-    return sqrt(x ** 2 + y ** 2)
-
-specialized_hypot = diojit.jit_spec_call(hypot, diojit.oftype(int), diojit.oftype(int))
-specialized_hypot(1, 2) # 比原生Python快30%以上
+jit_fib = diojit.jit_spec_call(fib, diojit.oftype(int), diojit.oftype(int))
+jit_fib(15) # 比原生Python快600%以上
 ```
 
-DIO-JIT是一种 method JIT, 在抽象解释和调用点特化下成为可能。抽象解释由编译器实现，而特化规则可以扩展式地注册(例见`jit.absint.prescr`)
+你可能会问, 为什么上面的代码要使用`a + -1`和`a + -2`这么迷惑的写法？
 
-我们什么都可以优化！
+你get了重点！
 
-## 贡献案例: 为`list.append`注册特化规则
+我们的jit依赖于已有的特化规则。我们已经为加法，具体的说是`operator.__add__`实现了特化规则: [`operator.__add__`的特化规则](https://github.com/thautwarm/diojit/blob/05a20be3cb0bbf543f6c5d9e154f73a0071cbfa2/diojit/absint/prescr.py#L226).
+
+但因为个人精力有限，目前还没有为`operator.__sub__`实现对应的规则。
+
+虽然特化是非常常见的优化技术，但与很多的Python JIT不同的是，DIO-JIT并不需要在编译器层面内建特别的优化。DIO-JIT编译器只负责实现一个抽象解释的算法，
+而更具体的推导、特化规则，在Python里就可以扩展式地添加！
+
+下面是一个例子。
+
+## 代码贡献案例: 为`list.append`注册特化规则
 
 步骤1：Python端如下代码
 
@@ -128,20 +135,28 @@ def list_append_analysis(self: jit.Judge, *args: jit.AbsVal):
     )
 ```
 
+上面的`jit.intrinsic("PyList_Append")`指的是JIT后端提供的底层原语，它通常是调用CPython的C API。
+
+我们可以在Julia里面实现这些底层原语。
+
 步骤2： Julia端
 
-- [导入Py_ListAppend符号](https://github.com/thautwarm/DIO.jl/blob/182a995cf0543007ef5d7089e5fdbbb8104f8e02/src/dynamic.jl#L32)
+- [导入PyList_Append符号](https://github.com/thautwarm/DIO.jl/blob/c3ec304645437da6bb02c9e5acb0c91e5e3800a8/src/symbols.jl#L53)
 
-- [生成Py_ListAppend的调用约定](https://github.com/thautwarm/DIO.jl/blob/182a995cf0543007ef5d7089e5fdbbb8104f8e02/src/dynamic.jl#L50):
+- [生成PyList_Append的调用约定](https://github.com/thautwarm/DIO.jl/blob/5fa79357798ff3eaee561d14d4f04a271213282c/src/dynamic.jl#L120):
+    
+    
+    ```julia
+    @autoapi PyList_Append(PyPtr, PyPtr)::Cint != Cint(-1) cast(_cint2none) nocastexc
+    ```
+    
+    这样一来，我们就自动生成了一个能够处理CPython错误处理和引用计数的原语函数。
 
-```julia
-@autoapi PyList_Append(PyPtr, PyPtr)::Cint != Cint(-1)
-```
-
-你也可以在Python端实现步骤2）
+实际上，你也可以在Python端手动实现步骤2，没有宏看起来可能会更直观一些：
 
 ```python
 import diojit as jit
+from diojit.runtime.julia_rt import jl_eval
 jl_implemented_intrinsic = b"""
 function PyList_Append(lst::Ptr, elt::PyPtr)
     if ccall(PyAPI.PyList_Append, Cint, (PyPtr, PyPtr), lst, elt) == -1
@@ -151,8 +166,7 @@ function PyList_Append(lst::Ptr, elt::PyPtr)
 end
 DIO.DIO_ExceptCode(::typeof(PyList_Append)) != Py_NULL
 """
-libjl = jit.runtime.julia_rt.get_libjulia()
-libjl.jl_eval_string(jl_implemented_intrinsic)
+jl_eval(jl_implemented_intrinsic)
 ```
 
 我们立即得到大于**100%**的性能提升。
