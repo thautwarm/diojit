@@ -106,12 +106,15 @@ jit_fib(15) # 比原生Python快600%以上
 
 我们的jit依赖于已有的特化规则。我们已经为加法，具体的说是`operator.__add__`实现了特化规则: [`operator.__add__`的特化规则](https://github.com/thautwarm/diojit/blob/05a20be3cb0bbf543f6c5d9e154f73a0071cbfa2/diojit/absint/prescr.py#L226).
 
+(P.S: [为啥是 `operator.__add__`](https://github.com/thautwarm/diojit/blob/3ceb9513377234f476566f70792632ce08c13373/diojit/stack2reg/translate.py#L30).)
+
 但因为个人精力有限，目前还没有为`operator.__sub__`实现对应的规则。
 
 虽然特化是非常常见的优化技术，但与很多的Python JIT不同的是，DIO-JIT并不需要在编译器层面内建特别的优化。DIO-JIT编译器只负责实现一个抽象解释的算法，
 而更具体的推导、特化规则，在Python里就可以扩展式地添加！
 
 下面是一个例子。
+
 
 ## 代码贡献案例: 为`list.append`注册特化规则
 

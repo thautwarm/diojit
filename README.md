@@ -105,11 +105,14 @@ DIO-JIT relies on specilisation rules. We have written one for additions, more s
 
 However, due to the bandwidth limitation, rules for `operator.__sub__` is not implemented yet.
 
+(P.S: [why `operator.__add__`](https://github.com/thautwarm/diojit/blob/3ceb9513377234f476566f70792632ce08c13373/diojit/stack2reg/translate.py#L30).)
+
 Although specilisation is common in the scope of optimisation, unlike many other JIT attempts, DIO-JIT doesn't need to
 hard encode rules at compiler level. The DIO-JIT compiler implements the skeleton of abstract interpretation, but concrete
 rules for specialisation and other inferences can be added within Python itself in an extensible way!
   
 See an example below.
+
 
 ## Contribution Example: Add a specialisation rule for `list.append`
 
