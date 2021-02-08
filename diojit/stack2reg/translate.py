@@ -85,7 +85,7 @@ class PyC:
             cflags.GENERATOR,
             cflags.COROUTINE,
         ):
-            raise ValueError
+            raise ValueError("varargs/coroutine/varkeywords/generator are not supported yet.")
 
         self.co = list(co)
         self.label_to_co_offsets = _map = {}

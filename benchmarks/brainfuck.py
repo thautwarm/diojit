@@ -1,6 +1,7 @@
 """
-jit time 172.90030336380005
-pure py time 256.15691924095154
+jit time 140.34073400497437
+pure py time 244.5001037120819
+23280 ==? 23280
 """
 import platform
 import socket
@@ -11,8 +12,10 @@ import os
 import itertools
 from pathlib import Path
 import diojit as jit
+import typing
 
-print('brainfuck'.center(50, '='))
+sys.setrecursionlimit(2000)
+print("brainfuck".center(50, "="))
 
 
 INC = 1
@@ -24,77 +27,49 @@ OP = 0
 VAL = 1
 
 
+@jit.eagerjit
 class Op(object):
+    op: int
+    val: typing.Union[int, list]
+
     def __init__(self, op, val):
+        assert isinstance(op, int) and isinstance(val, (int, list))
         self.op = op
         self.val = val
 
 
-jit.create_shape(Op, oop=True)
-
-
-@jit.register(Op, attr="__getattr__")
-def call_op_getattr(self, *args: jit.AbsVal):
-    if len(args) != 2:
-        return NotImplemented
-    subject, attr = args
-    if attr.is_s() and attr.is_literal() and isinstance(attr.base, str):
-        attr_o = attr.base
-        if attr_o in ("op", "val"):
-            ret_types = jit.S(int)
-            func = jit.S(jit.intrinsic("PyObject_GetAttr"))
-            return jit.CallSpec(None, func(subject, attr), ret_types)
-    return NotImplemented
-
-
+@jit.eagerjit
 class Tape(object):
+    tape: list
+    pos: int
+
     def __init__(self):
         self.tape = [0]
         self.pos = 0
 
-    @jit.jit
     def get(self):
         return self.tape[self.pos]
 
-    @jit.jit(fixed_references=[])
     def inc(self, x):
         self.tape[self.pos] += x
 
-    @jit.jit(fixed_references=["len"])
     def move(self, x):
         self.pos += x
         while self.pos >= len(self.tape):
             self.tape.extend(itertools.repeat(0, len(self.tape)))
 
 
-Tape_shape = jit.create_shape(Tape, oop=True)
-Tape_shape.fields["move"] = jit.S(Tape.move)
-Tape_shape.fields["inc"] = jit.S(Tape.inc)
-Tape_shape.fields["get"] = jit.S(Tape.get)
-
-
-@jit.register(Tape, attr="__getattr__")
-def call_op_getattr(self, *args: jit.AbsVal):
-    if len(args) != 2:
-        return NotImplemented
-
-    subject, attr = args
-    if attr.is_s() and attr.is_literal() and isinstance(attr.base, str):
-        attr_o = attr.base
-        if t := {"tape": list, "pos": int}.get(attr_o):
-            ret_types = (jit.S(t),)
-            func = jit.S(jit.intrinsic("PyObject_GetAttr"))
-            return jit.CallSpec(None, func(subject, attr), ret_types)
-    return NotImplemented
-
-
+@jit.eagerjit
 class Printer(object):
+    sum1: int
+    sum2: int
+    quiet: bool
+
     def __init__(self, quiet):
         self.sum1 = 0
         self.sum2 = 0
         self.quiet = quiet
 
-    @jit.jit
     def print(self, n):
         if self.quiet:
             self.sum1 = (self.sum1 + n) % 255
@@ -106,25 +81,6 @@ class Printer(object):
     @property
     def checksum(self):
         return (self.sum2 << 8) | self.sum1
-
-
-Printer_shape = jit.create_shape(Printer, oop=True)
-Printer_shape.fields["print"] = jit.S(Printer.print)
-
-
-@jit.register(Printer, attr="__getattr__")
-def call_op_getattr(self, *args: jit.AbsVal):
-    if len(args) != 2:
-        return NotImplemented
-
-    subject, attr = args
-    if attr.is_s() and attr.is_literal() and isinstance(attr.base, str):
-        attr_o = attr.base
-        if t := {"sum1": int, "sum2": int, "quiet": bool}.get(attr_o):
-            ret_types = (jit.S(t),)
-            func = jit.S(jit.intrinsic("PyObject_GetAttr"))
-            return jit.CallSpec(None, func(subject, attr), ret_types)
-    return NotImplemented
 
 
 def parse(iterator):
@@ -153,10 +109,13 @@ def parse(iterator):
     return res
 
 
-@jit.jit(fixed_references=["INC", "MOVE", "LOOP", "PRINT", "_run"])
+@jit.eagerjit
 def _run(program, tape, p):
-    program = iter(program)
-    while op := next(program, None):
+    i = 0
+    n = len(program)
+    while i < n:
+        op = program[i]
+        i += 1
         if op.op == INC:
             tape.inc(op.val)
         elif op.op == MOVE:
@@ -179,7 +138,7 @@ class Program(object):
                 jit.oftype(list),
                 jit.oftype(Tape),
                 jit.oftype(Printer),
-                # print_dio_ir=print,
+                print_dio_ir=print,
             )
             _run_jit(self.ops, Tape(), p)
         else:

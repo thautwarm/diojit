@@ -15,7 +15,7 @@ Important:
 
 | Item  | PY38  | JIT PY38   | PY39   | JIT PY39  |
 |---|---|---|---|---|
-| [BF](https://github.com/thautwarm/diojit/blob/master/benchmarks/brainfuck.py)   | 267.13  | 185.20  | 242.01  |  177.30 |
+| [BF](https://github.com/thautwarm/diojit/blob/master/benchmarks/brainfuck.py)   | 265.74  | 134.23  | 244.50  |  140.34 |
 | [append3](https://github.com/thautwarm/diojit/blob/master/benchmarks/append3.py)  | 23.94  |  10.70 | 22.29  | 11.21  |
 | [DNA READ](https://github.com/thautwarm/diojit/blob/master/benchmarks/dna_read.py)  | 16.96  | 14.82  | 15.03   | 14.38  |
 | [fib(15)](https://github.com/thautwarm/diojit/blob/master/benchmarks/fib.py) | 11.63  | 1.54  | 10.41   | 1.51  |
@@ -88,7 +88,7 @@ julia -e "using Pkg; Pkg.update(string(:DIO));using DIO"
 ```python
 import diojit
 from math import sqrt
-@diojit.jit(fixed_references=["sqrt", "str", "int", "isinstance"])
+@diojit.eagerjit
 def hypot(x, y):
     if isinstance(x, str):
         x = int(x)
