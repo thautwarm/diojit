@@ -341,9 +341,10 @@ class PyC:
             elif x.opcode is opcodes.DUP_TOP:
                 self.push(self.peek(0))
             elif x.opcode is opcodes.DUP_TOP_TWO:
-                a = self.peek(0)
+                a = self.peek(1)
+                b = self.peek(0)
                 self.push(a)
-                self.push(a)
+                self.push(b)
             elif x.opcode is opcodes.BINARY_SUBSCR:
                 # | TOS1 | TOS |
                 # TOS1[TOS]

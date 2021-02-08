@@ -1,3 +1,7 @@
+"""
+jit time 172.90030336380005
+pure py time 256.15691924095154
+"""
 import platform
 import socket
 import sys
@@ -7,17 +11,6 @@ import os
 import itertools
 from pathlib import Path
 import diojit as jit
-
-
-@jit.jit
-def print(self, n):
-    if self.quiet:
-        self.sum1 = (self.sum1 + n) % 255
-        self.sum2 = (self.sum2 + self.sum1) % 255
-    else:
-        sys.stdout.write(chr(n))
-        sys.stdout.flush()
-
 
 
 INC = 1
@@ -160,7 +153,8 @@ def parse(iterator):
 
 @jit.jit(fixed_references=["INC", "MOVE", "LOOP", "PRINT", "_run"])
 def _run(program, tape, p):
-    for op in program:
+    program = iter(program)
+    while op := next(program, None):
         if op.op == INC:
             tape.inc(op.val)
         elif op.op == MOVE:
@@ -183,21 +177,15 @@ class Program(object):
                 jit.oftype(list),
                 jit.oftype(Tape),
                 jit.oftype(Printer),
+                print_dio_ir=print,
             )
             _run_jit(self.ops, Tape(), p)
         else:
             _run(self.ops, Tape(), p)
 
 
-jit.jit_spec_call(
-    Tape.move,
-    jit.oftype(Tape),
-    jit.oftype(int),
-    print_dio_ir=print,
-)
-
-p1 = Printer(False)
-p2 = Printer(False)
+p1 = Printer(True)
+p2 = Printer(True)
 
 prog = Program(
     """>++[<+++++++++++++>-]<[[>+>+<<-]>[<+>-]++++++++
