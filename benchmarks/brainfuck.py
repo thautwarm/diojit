@@ -12,6 +12,8 @@ import itertools
 from pathlib import Path
 import diojit as jit
 
+print('brainfuck'.center(50, '='))
+
 
 INC = 1
 MOVE = 2
@@ -177,7 +179,7 @@ class Program(object):
                 jit.oftype(list),
                 jit.oftype(Tape),
                 jit.oftype(Printer),
-                print_dio_ir=print,
+                # print_dio_ir=print,
             )
             _run_jit(self.ops, Tape(), p)
         else:

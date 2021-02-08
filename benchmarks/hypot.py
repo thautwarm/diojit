@@ -39,7 +39,7 @@ hypot_spec = jit.jit_spec_call(
     hypot,
     jit.oftype(int),
     jit.oftype(int),
-    print_jl=print,
+    # print_jl=print,
     # print_dio_ir=print,
 )
 # #
@@ -51,11 +51,11 @@ print("hypot(1, 2) (jit) = ", hypot_spec(1, 2))
 print("hypot(1, 2) (pure py) = ", hypot(1, 2))
 print(
     "hypot (pure py) bench time:",
-    timeit.timeit("f(1, 2)", number=1000000, globals=dict(f=hypot)),
+    timeit.timeit("f(1, 2)", number=10000000, globals=dict(f=hypot)),
 )
 print(
     "hypot (jit) bench time:",
     timeit.timeit(
-        "f(1, 2)", number=1000000, globals=dict(f=hypot_spec)
+        "f(1, 2)", number=10000000, globals=dict(f=hypot_spec)
     ),
 )

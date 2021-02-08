@@ -7,6 +7,7 @@ from inspect import getsource
 import timeit
 from diojit.runtime.julia_rt import splice, jl_eval
 
+print('trans'.center(50, '='))
 
 @jit.jit
 def f(x):
@@ -20,8 +21,8 @@ def f(x):
     return x
 
 
-jit_f = jit.jit_spec_call(f, jit.oftype(int), print_jl=print)
+jit_f = jit.jit_spec_call(f, jit.oftype(int))
 
 print(jit_f(10))
-print('pure py:', timeit.timeit("f(10)", globals=dict(f=f), number=11111111))
-print('jit:', timeit.timeit("f(10)", globals=dict(f=jit_f), number=11111111))
+print('pure py:', timeit.timeit("f(10)", globals=dict(f=f), number=111111111))
+print('jit:', timeit.timeit("f(10)", globals=dict(f=jit_f), number=111111111))

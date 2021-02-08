@@ -17,6 +17,8 @@ import diojit as jit
 from diojit.codegen.julia import splice
 from diojit.runtime.julia_rt import check_jl_err, get_libjulia
 
+print('DNA READ'.center(50, '='))
+
 libjl = get_libjulia()
 contents = requests.get(
     r"https://raw.githubusercontent.com/dundee/pybenchmarks/master/bencher/data/revcomp-input1000.txt"
@@ -86,7 +88,7 @@ def main2(out_io: bytearray):
 jit_main = jit.jit_spec_call(
     main2,
     jit.oftype(bytearray),
-    print_dio_ir=print,
+    # print_dio_ir=print,
 )
 # raise
 #
@@ -95,17 +97,19 @@ jl_eval(f"J_main2_0({splice(x)})")
 # raise
 print(main(bytearray()) == jit_main(bytearray()))
 print(
+    'jit',
     timeit.timeit(
         "main(bytearray())",
-        number=100000,
+        number=200000,
         globals=dict(main=jit_main),
     ),
 )
 
 print(
+    'pure py',
     timeit.timeit(
         "main(bytearray())",
-        number=100000,
+        number=200000,
         globals=dict(main=main),
     ),
 )

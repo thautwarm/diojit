@@ -38,13 +38,13 @@ xs = []
 print(
     "append3 (jit) bench time:",
     timeit.timeit(
-        "f(xs, 1)", globals=dict(f=jit_append3, xs=xs), number=10000000
+        "f(xs, 1)", globals=dict(f=jit_append3, xs=xs), number=100000000
     ),
 )
 xs = []
 print(
     "append3 (pure py) bench time:",
     timeit.timeit(
-        "f(xs, 1)", globals=dict(f=append3, xs=xs), number=10000000
+        "f(xs, 1)", globals=dict(f=append3, xs=xs), number=100000000
     ),
 )

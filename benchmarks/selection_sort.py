@@ -12,6 +12,7 @@ from diojit.runtime.julia_rt import check_jl_err
 from diojit.codegen.julia import splice
 import sys
 
+print('selection sort'.center(50, '='))
 sys.setrecursionlimit(2000)
 
 libjl = jit.runtime.julia_rt.get_libjulia()
@@ -72,16 +73,15 @@ jit_msort = jit.jit_spec_call(
 
 
 xs = list(np.random.randint(0, 10000, 100))
-print(jit_msort(xs))
 print(
     "pure py:",
-    timeit.timeit("f(xs)", globals=dict(xs=xs, f=msort), number=10000),
+    timeit.timeit("f(xs)", globals=dict(xs=xs, f=msort), number=100000),
 )
 
 print(
     "jit:",
     timeit.timeit(
-        "f(xs)", globals=dict(xs=xs, f=jit_msort), number=10000
+        "f(xs)", globals=dict(xs=xs, f=jit_msort), number=100000
     ),
 )
 

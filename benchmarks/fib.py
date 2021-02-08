@@ -25,7 +25,7 @@ def fib_fix(a):
 jit_fib_fix_typed = jit.jit_spec_call(
     fib_fix,
     jit.oftype(int),
-    print_jl=print,
+    # print_jl=print,
 )
 jit_fib_fix_untyped = jit.jit_spec_call(fib_fix, jit.Top)
 jl_eval(f"println(J_fib__fix_1({splice(20)}))")
@@ -38,17 +38,17 @@ print(
 )
 print(
     "fib(py) bench time:",
-    timeit.timeit("f(15)", globals=dict(f=fib), number=10000),
+    timeit.timeit("f(15)", globals=dict(f=fib), number=100000),
 )
 print(
     "fib(jit+untyped) bench time:",
     timeit.timeit(
-        "f(15)", globals=dict(f=jit_fib_fix_untyped), number=10000
+        "f(15)", globals=dict(f=jit_fib_fix_untyped), number=100000
     ),
 )
 print(
     "fib(jit+inferred) bench time:",
     timeit.timeit(
-        "f(15)", globals=dict(f=jit_fib_fix_typed), number=10000
+        "f(15)", globals=dict(f=jit_fib_fix_typed), number=100000
     ),
 )

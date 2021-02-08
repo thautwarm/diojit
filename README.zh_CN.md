@@ -3,14 +3,30 @@
 [![README](https://img.shields.io/badge/i18n-English-teal)](https://github.com/thautwarm/diojit/blob/master/README.zh_CN.md) [![PyPI version shields.io](https://img.shields.io/pypi/v/diojit.svg)](https://pypi.python.org/pypi/diojit/) 
 [![JIT](https://img.shields.io/badge/cpython-3.8|3.9-green.svg)](https://pypi.python.org/pypi/diojit/)
 
+
 Important:
 
 1. 注意, DIO-JIT目前只在Python>=3.8时工作。我们高度依赖Python 3.8之后的`LOAD_METHOD`字节码指令。
 2. 在多数情况下来看，目前DIO-JIT不适合生产环境。我们还需要提供更多的特化规则，来让DIO-JIT变得开箱即用。
 3. 这个文档主要是为开发者提供的。用户不需要了解如何写特化规则，只需要使用`jit.jit(func_obj)`和`jit.jit_spec_call(func_obj, arg_specs...)`。
 
-<details><summary>安装</summary>
-<p>
+
+## Benchmark
+
+| Item  | PY38  | JIT PY38   | PY39   | JIT PY39  |
+|---|---|---|---|---|
+| [BF](https://github.com/thautwarm/diojit/blob/master/benchmarks/brainfuck.py)   | 267.13  | 185.20  | 242.01  |  177.30 |
+| [append3](https://github.com/thautwarm/diojit/blob/master/benchmarks/append3.py)  | 23.94  |  10.70 | 22.29  | 11.21  |
+| [DNA READ](https://github.com/thautwarm/diojit/blob/master/benchmarks/dna_read.py)  | 16.96  | 14.82  | 15.03   | 14.38  |
+| [fib(15)](https://github.com/thautwarm/diojit/blob/master/benchmarks/fib.py) | 11.63  | 1.54  | 10.41   | 1.51  |
+| [hypot(str, str)](https://github.com/thautwarm/diojit/blob/master/benchmarks/hypot.py)  | 6.19  | 3.87  | 6.53  | 4.29  |
+| [selectsort](https://github.com/thautwarm/diojit/blob/master/benchmarks/selection_sort.py)  | 46.95  | 33.88  | 38.71  | 29.49  |
+| [trans](https://github.com/thautwarm/diojit/blob/master/benchmarks/trans.py)  | 24.22  | 7.79  |  23.23 | 7.71  |
+
+The bechmark item "DNA READ" does not show a significant performance gain, this is because "DNA READ" heavily uses `bytearray` and `bytes`, whose specialised C-APIs
+are not exposed. In this case, although the JIT can infer the types, we have to fall back to CPython's default behaviour, or even worse: after all, the interpreter can access internal things, while we cannot.
+
+## 安装
 
 <details><summary>1: 安装Julia(我们的"底层代码编译服务"提供者)</summary>
 <p>
@@ -90,7 +106,7 @@ DIO-JIT是一种 method JIT, 在抽象解释和调用点特化下成为可能。
 
 我们什么都可以优化！
 
-## 为`list.append`注册特化规则
+## 贡献案例: 为`list.append`注册特化规则
 
 步骤1：Python端如下代码
 

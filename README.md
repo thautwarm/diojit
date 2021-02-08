@@ -9,8 +9,22 @@ Important:
 2. DIO-JIT is not production-ready. a large number of specialisation rules are required to make DIO-JIT batteries-included.
 3. This document is mainly provided for prospective developers. Users are not required to write any specialisation rules, which means that users need to learn nothing but `@jit.jit` and `jit.jit_spec_call`.
 
-<details><summary>Install Instructions</summary>
-<p>
+### Benchmark
+
+| Item  | PY38  | JIT PY38   | PY39   | JIT PY39  |
+|---|---|---|---|---|
+| [BF](https://github.com/thautwarm/diojit/blob/master/benchmarks/brainfuck.py)   | 267.13  | 185.20  | 242.01  |  177.30 |
+| [append3](https://github.com/thautwarm/diojit/blob/master/benchmarks/append3.py)  | 23.94  |  10.70 | 22.29  | 11.21  |
+| [DNA READ](https://github.com/thautwarm/diojit/blob/master/benchmarks/dna_read.py)  | 16.96  | 14.82  | 15.03   | 14.38  |
+| [fib(15)](https://github.com/thautwarm/diojit/blob/master/benchmarks/fib.py) | 11.63  | 1.54  | 10.41   | 1.51  |
+| [hypot(str, str)](https://github.com/thautwarm/diojit/blob/master/benchmarks/hypot.py)  | 6.19  | 3.87  | 6.53  | 4.29  |
+| [selectsort](https://github.com/thautwarm/diojit/blob/master/benchmarks/selection_sort.py)  | 46.95  | 33.88  | 38.71  | 29.49  |
+| [trans](https://github.com/thautwarm/diojit/blob/master/benchmarks/trans.py)  | 24.22  | 7.79  |  23.23 | 7.71  |
+
+The bechmark item "DNA READ" does not show a significant performance gain, this is because "DNA READ" heavily uses `bytearray` and `bytes`, whose specialised C-APIs
+are not exposed. In this case, although the JIT can infer the types, we have to fall back to CPython's default behaviour, or even worse: after all, the interpreter can access internal things, while we cannot.
+
+## Install Instructions
 
 <details><summary>Step 1: Install Julia as an in-process native code compiler for DIO-JIT</summary>
 <p>
@@ -57,7 +71,8 @@ julia> using DIO # precompile
 </details>
 
 <details><summary>How to fetch latest DIO-JIT?(if you have installed DIO)</summary>
-<p>
+
+<p> 
 
 ```
 pip install -U diojit
@@ -91,7 +106,7 @@ You can register new specialisation rules(and see examples) from (`jit.absint.pr
 
 We're able to optimise anything!
 
-## Add a specialisation rule for `list.append`
+## Contribution Example: Add a specialisation rule for `list.append`
 
 1. Python Side:
 
