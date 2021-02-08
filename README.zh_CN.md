@@ -104,7 +104,7 @@ jit_fib(15) # 比原生Python快600%以上
 
 你get了重点！
 
-我们的jit依赖于已有的特化规则。我们已经为加法，具体的说是`operator.__add__`实现了特化规则: [`operator.__add__`的特化规则](https://github.com/thautwarm/diojit/blob/05a20be3cb0bbf543f6c5d9e154f73a0071cbfa2/diojit/absint/prescr.py#L226).
+我们的jit依赖于已有的特化规则。我们已经为加法，具体的说是`operator.__add__`实现了特化规则: [`operator.__add__`的特化规则](https://github.com/thautwarm/diojit/blob/175aab5f4cb65fee923b9f6cb97c256252fc49f5/diojit/absint/prescr.py#L226).
 
 (P.S: [为啥是 `operator.__add__`](https://github.com/thautwarm/diojit/blob/3ceb9513377234f476566f70792632ce08c13373/diojit/stack2reg/translate.py#L30).)
 

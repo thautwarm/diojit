@@ -101,7 +101,7 @@ It might look strange to you that we use `a + -1` and `a + -2` here.
 
 Clever observation! And that's the point!
 
-DIO-JIT relies on specilisation rules. We have written one for additions, more specifically, `operator.__add__`: [specilisation for `operator.__add__`](https://github.com/thautwarm/diojit/blob/05a20be3cb0bbf543f6c5d9e154f73a0071cbfa2/diojit/absint/`prescr.py#L226).
+DIO-JIT relies on specilisation rules. We have written one for additions, more specifically, `operator.__add__`: [specilisation for `operator.__add__`](https://github.com/thautwarm/diojit/blob/175aab5f4cb65fee923b9f6cb97c256252fc49f5/diojit/absint/prescr.py#L226).
 
 However, due to the bandwidth limitation, rules for `operator.__sub__` is not implemented yet.
 
