@@ -6,8 +6,7 @@ why julia?
    For instance, manual analysis for Python RC's ownership transfer
    is verbose, but with Julia specialisation it is easily
    made automatic.
-
-3. I love Julia
+4. I love Julia
 """
 from __future__ import annotations
 from ..absint import *
