@@ -813,8 +813,6 @@ class Judge:
             while (hd := xs[index]) and isinstance(hd, In_SetLineno):
                 self << Out_SetLineno(hd.line, hd.filename)
                 index += 1
-
-            # print(hd, local.store)
         except IndexError:
             # TODO
             raise Exception("non-terminaor terminate")
@@ -902,6 +900,7 @@ class Judge:
             if e_call in (Top, Bot):
                 self.error(local)
                 return
+
             # 1. no actual CALL happens
             if not isinstance(e_call, (Out_Call, D)):
                 local = decref(self, local, a_x)
@@ -931,10 +930,14 @@ class Judge:
                 if a_t is Bot:
                     self.error(local)
                     return
-                a_t = a_spec.type
-                code, a_spec = try_spec_val_then_decref(
-                    a_spec, a_t
-                )  # handle instance
+                if instance:
+                    a_spec = instance
+                    code = []
+                else:
+                    a_t = a_spec.type
+                    code, a_spec = try_spec_val_then_decref(
+                        a_spec, a_t
+                    )  # handle instance
                 valid_value(a_spec)
                 if code:
                     self << code[0]
@@ -1166,11 +1169,12 @@ def ufunc_spec(self, a_func: AbsVal, *arguments: AbsVal) -> CallSpec:
         )
         instance, *is_union = sub_judge.returns
         instance = valid_value(instance)
+
         if isinstance(instance, D):
             instance = None
         elif is_union:
             instance = None
-        else:
+        elif instance is None:
             t = ret_types[0]
             if t.is_s():
                 instance = t.shape.instance

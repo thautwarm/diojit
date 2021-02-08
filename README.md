@@ -24,6 +24,12 @@ Important:
 The bechmark item "DNA READ" does not show a significant performance gain, this is because "DNA READ" heavily uses `bytearray` and `bytes`, whose specialised C-APIs
 are not exposed. In this case, although the JIT can infer the types, we have to fall back to CPython's default behaviour, or even worse: after all, the interpreter can access internal things, while we cannot.
 
+
+P.S:
+DIO-JIT can do very powerful partial evaluation, which is disabled in default but you can
+leverage it in your domain specific tasks. Here is an example of achieving **500x** speed up aginst pure Python: [fibs.py](https://github.com/thautwarm/diojit/blob/master/slide-examples/fibs.py) 
+
+
 ## Install Instructions
 
 <details><summary>Step 1: Install Julia as an in-process native code compiler for DIO-JIT</summary>
