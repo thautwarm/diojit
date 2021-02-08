@@ -40,7 +40,7 @@ def show(out_io: bytearray, seq):
     n = len(seq_)
     while i < n:
         out_io.extend(seq_[i : i + 60])
-        i = i + 60
+        i += 60
 
 
 # @jit.jit
@@ -86,7 +86,7 @@ def main2(out_io: bytearray):
 jit_main = jit.jit_spec_call(
     main2,
     jit.oftype(bytearray),
-    # print_dio_ir=print,
+    print_dio_ir=print,
 )
 # raise
 #

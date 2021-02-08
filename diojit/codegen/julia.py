@@ -149,8 +149,18 @@ class Codegen:
             for i in instr.decrefs:
                 self << f"    Py_DECREF({self.var_i(i)})"
             self << r"    @goto except"
+            self << f"elseif DIO_HasCast({f})"
+            self << f"    {var} = DIO_HasCast({f}, __tmp__)"
+            self << f"    if DIO_CastExc({f})"
+            self << f"       {var} === Py_NULL && return Py_NULL"
+            self << r"    end"
+            self << r"elseif __tmp__ isa PyPtr"
+            self << f"    {var} = __tmp__"
+            self << r"elseif __tmp__ isa Integer"
+            self << f"    {var} = DIO_WrapIntValue(__tmp__)"
+            self << f"    {var} === Py_NULL && return Py_NULL"
             self << r"else"
-            self << f"    {var} = DIO_PyOrNone(__tmp__)"
+            self << f"    {var} = DIO_NewNone()"
             self << r"end"
             return
         elif isinstance(instr, Out_Label):

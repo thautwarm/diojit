@@ -10,6 +10,9 @@ import timeit
 import numpy as np
 from diojit.runtime.julia_rt import check_jl_err
 from diojit.codegen.julia import splice
+import sys
+
+sys.setrecursionlimit(2000)
 
 libjl = jit.runtime.julia_rt.get_libjulia()
 
@@ -19,13 +22,19 @@ def jl_eval(s: str):
     check_jl_err(libjl)
 
 
-@jit.jit
+@jit.jit(fixed_references=["int"])
+def lt(e, min_val):
+    return int(e) < int(min_val)
+
+
+@jit.jit(fixed_references=["lt", "int"])
 def argmin(xs, i, n):
-    min_val = xs[i]
+    min_val = xs[i]  # int(xs[i])
     min_i = i
     j = i + 1
     while j < n:
-        e = xs[j]
+        e = xs[j]  # int(xs[j])
+        # if lt(e, min_val):
         if e < min_val:
             min_i = j
             min_val = e
@@ -58,12 +67,12 @@ def mwe(xs):
 jit_msort = jit.jit_spec_call(
     msort,
     jit.oftype(list),
-    print_dio_ir=print,
+    # print_dio_ir=print,
 )
 
 
 xs = list(np.random.randint(0, 10000, 100))
-
+print(jit_msort(xs))
 print(
     "pure py:",
     timeit.timeit("f(xs)", globals=dict(xs=xs, f=msort), number=10000),

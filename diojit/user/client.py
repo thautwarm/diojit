@@ -22,7 +22,7 @@ def jit(
     fixed_references: Iterable[str] = None,
 ):
 
-    if fixed_references:
+    if fixed_references is not None:
         fixed_references = set(fixed_references)
         if not func:
             return lambda func: _jit(func, fixed_references)

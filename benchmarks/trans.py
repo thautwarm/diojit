@@ -1,7 +1,6 @@
 """
-fib(15) (py) bench time: 1.3318193000000003
-fib(15) (jit+untyped) bench time: 0.42067140000000025
-fib(15) (jit+inferred) bench time: 0.1776359000000003
+pure py: 2.6820188
+jit: 0.8471317999999997
 """
 import diojit as jit
 from inspect import getsource
@@ -24,5 +23,5 @@ def f(x):
 jit_f = jit.jit_spec_call(f, jit.oftype(int), print_jl=print)
 
 print(jit_f(10))
-print(timeit.timeit("f(10)", globals=dict(f=f), number=11111111))
-print(timeit.timeit("f(10)", globals=dict(f=jit_f), number=11111111))
+print('pure py:', timeit.timeit("f(10)", globals=dict(f=f), number=11111111))
+print('jit:', timeit.timeit("f(10)", globals=dict(f=jit_f), number=11111111))

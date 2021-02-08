@@ -3,7 +3,7 @@ from datetime import datetime
 from pathlib import Path
 
 
-version = "0.1.4"
+version = "0.1.4.1"
 with Path("README.md").open() as readme:
     readme = readme.read()
 

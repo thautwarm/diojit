@@ -106,6 +106,7 @@ create_shape(bytes, oop=True)
 create_shape(bool, oop=True)
 create_shape(bytearray, oop=True)
 create_shape(next)
+create_shape(int)
 create_shape(io.BytesIO)
 _NoneType_shape = create_shape(type(None))
 _NoneType_shape.instance = S(None)
@@ -180,15 +181,21 @@ def py_call_bool_type(self: Judge, *args: AbsVal):
 
 
 @register(isinstance, create_shape=True)
-def spec_isinstance(self: Judge, l: AbsVal, r: AbsVal):
+def spec_isinstance(self: Judge, *args: AbsVal):
+    if len(args) != 2:
+        return NotImplemented
+    l, r = args
+    return_types = tuple({Values.A_Bool})
     if (
         isinstance(l.type, S)
         and isinstance(r, S)
         and isinstance(r.base, type)
     ):
         const = l.type == r or l.type.base in r.base.__bases__
-        return CallSpec(S(const), S(const), tuple({Values.A_Bool}))
-    return NotImplemented
+        return CallSpec(S(const), S(const), return_types)
+
+    func = S(intrinsic("PyObject_IsInstance"))
+    return CallSpec(None, func(l, r), return_types)
 
 
 @register(operator.__pow__, create_shape=True)
@@ -217,6 +224,19 @@ def spec_len(self: Judge, *args: AbsVal):
 
 
 @register(operator.__add__, create_shape=True)
+def spec_add(self: Judge, l: AbsVal, r: AbsVal):
+    if l.type == Values.A_Int:
+        if r.type == Values.A_Int:
+            py_int_add_int = S(intrinsic("Py_IntAddInt"))
+            return_types = tuple({Values.A_Int})
+            constant_result = None  # no constant result
+            return CallSpec(
+                constant_result, py_int_add_int(l, r), return_types
+            )
+    return NotImplemented
+
+
+@register(operator.__iadd__, create_shape=True)
 def spec_add(self: Judge, l: AbsVal, r: AbsVal):
     if l.type == Values.A_Int:
         if r.type == Values.A_Int:
@@ -269,6 +289,47 @@ def spec_sqrt(self: Judge, a: AbsVal):
         int_sqrt = S(intrinsic("Py_IntSqrt"))
         return CallSpec(None, int_sqrt(a), tuple({Values.A_Float}))
     return NotImplemented
+
+
+@register(setattr, create_shape=True)
+def call_setattr(self: Judge, *args: AbsVal):
+    if len(args) != 3:
+        return NotImplemented
+
+    func = S(intrinsic("PyObject_SetAttr"))
+    e_call = func(*args)
+    return CallSpec(S(None), e_call, (Values.A_NoneType,))
+
+
+@register(getattr, create_shape=True)
+def call_getattr(self: Judge, *args: AbsVal):
+    if len(args) != 2:
+        return NotImplemented
+    ret_types = (Top,)
+    subject, attr = args
+    # noinspection PyUnboundLocalVariable
+    if (
+        subject.type.is_s()
+        and (shape := subject.type.shape)
+        and (__getattr__ := shape.fields.get("__getattr__"))
+    ):
+        # noinspection PyUnboundLocalVariable
+        __getattr__ = __getattr__
+        if not shape.oop:
+            args = [attr]
+        if isinstance(__getattr__, S):
+            r = self.spec(__getattr__, "__call__", *args)
+            if r is not NotImplemented:
+                return r
+        else:
+            r = __getattr__(self, *args)
+            if r is not NotImplemented:
+                return r
+
+    func = S(intrinsic("PyObject_GetAttr"))
+    e_call = func(subject, attr)
+    instance = None
+    return CallSpec(instance, e_call, ret_types)
 
 
 @register(operator.__getitem__, create_shape=True)
@@ -457,3 +518,19 @@ def call_next(self: Judge, *args: AbsVal):
 
     ret_types = tuple(sorted(ret_types))
     return CallSpec(None, func(S(next), *args), ret_types)
+
+
+@register(int)
+def call_int(self: Judge, *args: AbsVal):
+    A_Int = S(int)
+    return_types = (A_Int,)
+    if len(args) == 0:
+        return CallSpec(S(0), S(0), return_types)
+    if len(args) != 1:
+        return NotImplemented
+    o = args[0]
+    if o.type == A_Int:
+        return CallSpec(None, o, return_types)
+
+    func = S(intrinsic("PyNumber_Long"))
+    return CallSpec(None, func(o), return_types)

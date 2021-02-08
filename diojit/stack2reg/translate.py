@@ -38,6 +38,23 @@ BIN_OPS: dict[int, FunctionType] = {
 }
 
 
+INP_BIN_OPS: dict[int, FunctionType] = {
+    opcodes.INPLACE_POWER: operator.__ipow__,
+    opcodes.INPLACE_MULTIPLY: operator.__imul__,
+    opcodes.INPLACE_MATRIX_MULTIPLY: operator.__imatmul__,
+    opcodes.INPLACE_FLOOR_DIVIDE: operator.__ifloordiv__,
+    opcodes.INPLACE_TRUE_DIVIDE: operator.__itruediv__,
+    opcodes.INPLACE_MODULO: operator.__imod__,
+    opcodes.INPLACE_ADD: operator.__iadd__,
+    opcodes.INPLACE_SUBTRACT: operator.__isub__,
+    opcodes.INPLACE_LSHIFT: operator.__ilshift__,
+    opcodes.INPLACE_RSHIFT: operator.__irshift__,
+    opcodes.INPLACE_AND: operator.__iand__,
+    opcodes.INPLACE_XOR: operator.__ixor__,
+    opcodes.INPLACE_OR: operator.__ior__,
+}
+
+
 CMP_OPS: dict[str, FunctionType] = _t.cast(
     _t.Dict[str, FunctionType],
     {
@@ -80,7 +97,6 @@ class PyC:
             if instr.opcode in JUMP_NAMES:
                 instr = self.co[i + 1]
                 _map[instr.offset] = i + 1
-
         self.glob_names = set()
         self.offset = 0
         self.codeobj = code
@@ -214,7 +230,7 @@ class PyC:
                 a_base = self.pop()
                 a_value = self.pop()
                 self.call(
-                    S(Intrinsic.Py_StoreAttr),
+                    S(setattr),
                     a_base,
                     S(x.argval),
                     a_value,
@@ -223,7 +239,7 @@ class PyC:
                 x.opcode is opcodes.JUMP_ABSOLUTE
                 or x.opcode is opcodes.JUMP_FORWARD
             ):
-                label = self.jump(self.find_offset(x.arg))
+                label = self.jump(self.find_offset(x.argval))
                 self.codegen(In_Goto(label))
                 return
             elif x.opcode is opcodes.JUMP_IF_TRUE_OR_POP:
@@ -264,7 +280,7 @@ class PyC:
                 self.push(S(x.argval))
             elif x.opcode is opcodes.LOAD_ATTR:
                 tos = self.pop()
-                self.call(S(Intrinsic.Py_LoadAttr), tos, S(x.argval))
+                self.call(S(getattr), tos, S(x.argval))
             elif x.opcode is opcodes.CALL_METHOD:
                 args = self.get_nargs(x.argval)
                 attr = self.pop()
@@ -337,6 +353,9 @@ class PyC:
             elif x.opname.startswith("BINARY_"):
                 right, left = self.pop(), self.pop()
                 self.call(S(BIN_OPS[x.opcode]), left, right)
+            elif x.opname.startswith("INPLACE_"):
+                right, left = self.pop(), self.pop()
+                self.call(S(INP_BIN_OPS[x.opcode]), left, right)
             elif x.opcode is opcodes.BUILD_TUPLE:
                 args = self.get_nargs(x.argval)
                 self.call(S(Intrinsic.Py_BuildTuple), *args)

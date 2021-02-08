@@ -5,7 +5,7 @@
 
 Important:
 
-1. DIO-JIT now works for Python >= 3.8. We heavily relies on the `LOAD_METHOD` bytecode instruction.
+1. DIO-JIT now works for Python >= 3.8. We heavily rely on the `LOAD_METHOD` bytecode instruction.
 2. DIO-JIT is not production-ready. a large number of specialisation rules are required to make DIO-JIT batteries-included.
 3. This document is mainly provided for prospective developers. Users are not required to write any specialisation rules, which means that users need to learn nothing but `@jit.jit` and `jit.jit_spec_call`.
 

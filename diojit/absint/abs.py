@@ -185,6 +185,9 @@ class S(Out_Callable, AbsVal):
     def is_s(self):
         return True
 
+    def oop(self):
+        return (shape := self.shape) and shape.oop
+
     @property
     def type(self):
         base = self.base
@@ -299,7 +302,7 @@ undef = object()
 class Shape:
     name: object
     oop: bool
-    fields: dict[str, Union[AbsVal, types.FunctionType]]
+    fields: dict[str, Union[S, types.FunctionType]]
     # some type has unique instance
     # None.__class__ has None only
     instance: Union[
@@ -582,11 +585,31 @@ class JITSpecInfo:
     possibly_return_types: tuple[AbsVal, ...]
 
 
-@dataclasses.dataclass
 class CallSpec:
     instance: Optional[AbsVal]  # maybe return a constant instance
     e_call: Union[Out_Call, AbsVal]
     possibly_return_types: tuple[AbsVal, ...]
+
+    def __init__(
+        self,
+        instance: Optional[AbsVal],
+        e_call: Union[Out_Call, AbsVal],
+        possibly_return_types: Iterable[AbsVal, ...],
+    ):
+        self.instance = instance
+        self.e_call = e_call
+        if not isinstance(possibly_return_types, tuple):
+            possibly_return_types = tuple(possibly_return_types)
+        self.possibly_return_types = possibly_return_types
+
+    def __eq__(self, other):
+        return (
+            isinstance(other, CallSpec)
+            and self.instance == other.instance
+            and self.e_call == other.e_call
+            and self.possibly_return_types
+            == other.possibly_return_types
+        )
 
     def astuple(self):
         return self.instance, self.e_call, self.possibly_return_types
@@ -616,11 +639,19 @@ def mk_prespec_name(
 
 
 class MemSlot(NamedTuple):
-    refcnt: int
-    is_locally_allocated: bool
+    # reference count
+    rc: int
+    # is locally allocated
+    ila: bool
+
+    def __repr__(self):
+        x = f"[{self.rc}]"
+        if self.ila:
+            x = f"!{x}"
+        return x
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, eq=True, order=True)
 class Local:
     mem: pyrsistent.PVector[MemSlot]
     store: pyrsistent.PMap[int, AbsVal]
@@ -635,7 +666,7 @@ class Local:
 def alloc(local: Local):
     i = -1
     for i, each in enumerate(local.mem):
-        if each.refcnt == 0:
+        if each.rc == 0:
             return i
     i += 1
     return i
@@ -703,10 +734,10 @@ def decref(self: Judge, local: Local, a: AbsVal):
     if i < len(local.mem):
         mem = local.mem
         slot = mem[i]
-        if refcnt := slot.refcnt - 1:
-            slot = MemSlot(refcnt, slot.is_locally_allocated)
+        if refcnt := slot.rc - 1:
+            slot = MemSlot(refcnt, slot.ila)
         else:
-            if slot.is_locally_allocated:
+            if slot.ila:
                 self << Out_DecRef(i)
             slot = MemSlot(0, True)
         mem = mem.set(i, slot)
@@ -721,7 +752,7 @@ def incref(local: Local, a: AbsVal):
     mem = local.mem
     try:
         ref = mem[i]
-        slot = MemSlot(ref.refcnt + 1, ref.is_locally_allocated)
+        slot = MemSlot(ref.rc + 1, ref.ila)
         mem = mem.set(i, slot)
     except IndexError:
         assert len(mem) == i
@@ -1045,7 +1076,7 @@ class Judge:
 
     def all_ownerships(self, local: Local):
         for i, each in enumerate(local.mem):
-            if each.refcnt and each.is_locally_allocated:
+            if each.rc and each.ila:
                 yield i
 
     def error(self, local):
