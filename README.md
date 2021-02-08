@@ -126,16 +126,6 @@ def list_append_analysis(self: jit.Judge, *args: jit.AbsVal):
         e_call=jit.S(jit.intrinsic("PyList_Append"))(lst, elt),
         possibly_return_types=tuple({jit.S(type(None))}),
     )
-
-@jit.jit
-def append3(xs, x):
-    xs.append(x)
-    xs.append(x)
-    xs.append(x)
-
-jit_append3 = jit.jit_spec_call(append3, jit.oftype(list), jit.Top) # 'Top' means 'Any'
-xs = [1]
-jit_append3(xs, 3)
 ```
 
 2. Julia Side:
@@ -147,19 +137,33 @@ jit_append3(xs, 3)
 You can either do step 2) at Python side(for users other than DIO-JIT developers):
 ```python
 import diojit as jit
+from jit.runtime.julia_rt import jl_eval
 jl_implemented_intrinsic = b"""
 function PyList_Append(lst::Ptr, elt::PyPtr)
-    ccall(PyAPI.PyList_Append, Cint, (PyPtr, PyPtr), lst, elt) === Cint(-1)
+    if ccall(PyAPI.PyList_Append, Cint, (PyPtr, PyPtr), lst, elt) == -1
+        return Py_NULL
+    end
+    nothing # automatically maps to a Python None
 end
-DIO.DIO_ExceptCode(::typeof(PyList_Append)) = Cint(-1)
+DIO.DIO_ExceptCode(::typeof(PyList_Append)) != Py_NULL
 """
-libjl = jit.runtime.julia_rt.get_libjulia()
-libjl.jl_eval_string(jl_implemented_intrinsic)
+jl_eval(jl_implemented_intrinsic)
+
 ```
 
 You immediately get a >**100%** time speed up:
 
 ```python
+@jit.jit
+def append3(xs, x):
+    xs.append(x)
+    xs.append(x)
+    xs.append(x)
+
+jit_append3 = jit.jit_spec_call(append3, jit.oftype(list), jit.Top) # 'Top' means 'Any'
+xs = [1]
+jit_append3(xs, 3)
+
 print("test jit_append3, [1] append 3 for 3 times:", xs)
 # test jit func, [1] append 3 for 3 times: [1, 3, 3, 3]
 
