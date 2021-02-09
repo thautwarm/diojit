@@ -1,3 +1,7 @@
+## 0.2a(2/8/2021)
+
+- Rename `jit_spec_call` to `spec_call`.
+    
 ## 0.1.5(2/8/2021)
 
 - Add experimental features: `@eagerjit` and `@conservativejit`.
