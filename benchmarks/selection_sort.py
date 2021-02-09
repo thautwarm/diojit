@@ -65,7 +65,7 @@ def mwe(xs):
     return xs[0] < xs[2]
 
 
-jit_msort = jit.jit_spec_call(
+jit_msort = jit.spec_call(
     msort,
     jit.oftype(list),
     # print_dio_ir=print,

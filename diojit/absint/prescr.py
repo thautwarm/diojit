@@ -2,6 +2,7 @@ from __future__ import annotations
 from .abs import *
 from .intrinsics import *
 from collections.abc import Iterable
+from functools import lru_cache
 import warnings
 import typing
 import operator
@@ -36,7 +37,9 @@ concrete_numeric_types = {
 }
 
 
-def create_shape(o: object, oop: bool = False, instance=_undef):
+def create_shape(
+    o: object, oop: bool = False, self_bound=False, instance=_undef
+):
     """
     o: 'Special Object' in the paper. Must be immutable.
     oop: whether attached methods will be
@@ -57,7 +60,7 @@ def create_shape(o: object, oop: bool = False, instance=_undef):
 
     if shape := ShapeSystem.get(o):
         return shape
-    shape = ShapeSystem[o] = Shape(o, oop, {}, instance)
+    shape = ShapeSystem[o] = Shape(o, oop, {}, instance, self_bound)
     return shape
 
 
@@ -102,11 +105,13 @@ def shape_of(o):
 
 create_shape(Intrinsic, oop=True)
 create_shape(list, oop=True)
+create_shape(dict, oop=True)
 create_shape(bytes, oop=True)
 create_shape(bool, oop=True)
 create_shape(bytearray, oop=True)
+create_shape(int, oop=True)
+# create_shape(type, self_bound=True, oop=True)
 create_shape(next)
-create_shape(int)
 create_shape(io.BytesIO)
 _NoneType_shape = create_shape(type(None))
 _NoneType_shape.instance = S(None)
@@ -367,6 +372,18 @@ def call_list_getitem(self: Judge, *args):
     return CallSpec(instance, e_call, ret_types)
 
 
+@register(dict, attr="__getitem__")
+def call_list_getitem(self: Judge, *args):
+    if len(args) != 2:
+        return NotImplemented
+    ret_types = (Top,)
+    subject, item = args
+    func = S(intrinsic("PyDict_GetItemWithError"))
+    e_call = func(subject, item)
+    instance = None
+    return CallSpec(instance, e_call, ret_types)
+
+
 @register(bytearray, attr="__getitem__")
 def call_bytearray_getitem(self: Judge, *args):
     if len(args) != 2:
@@ -484,16 +501,25 @@ def call_is(self: Judge, *args: AbsVal):
     l, r = args
     if l == r:
         return CallSpec(S(True), S(True), ret_types)
-    if (
-        l.type not in _not_inferred_types
-        and r.type not in _not_inferred_types
-        and l.type.base != r.type.base
-    ):
+    if l.type.is_s() and r.type.is_s() and l.type.base != r.type.base:
 
         return CallSpec(S(False), S(False), ret_types)
 
     func = S(intrinsic("Py_AddressCompare"))
     return CallSpec(None, func(*args), ret_types)
+
+
+@register(operator.__not__, create_shape=True)
+def call_not_(self: Judge, *args: AbsVal):
+    if len(args) != 1:
+        return NotImplemented
+    ret_types = (Values.A_Bool,)
+    arg = args[0]
+    if arg.is_literal():
+        const = S(not arg.base)
+        return CallSpec(const, const, ret_types)
+    c = self.no_spec(S(operator.__not__), "__call__", list(args))
+    return CallSpec(c.instance, c.e_call, ret_types)
 
 
 @register(next, create_shape=True)
@@ -520,8 +546,13 @@ def call_next(self: Judge, *args: AbsVal):
     return CallSpec(None, func(S(next), *args), ret_types)
 
 
+# @register(int, "__init__")
+# def call_int(self: Judge, *args: AbsVal):
+#     return CallSpec(S(None), S(None), (Values.A_NoneType, ))
+
+
 @register(int)
-def call_int(self: Judge, *args: AbsVal):
+def call_int(self: Judge, t: AbsVal, *args: AbsVal):
     A_Int = S(int)
     return_types = (A_Int,)
     if len(args) == 0:
@@ -534,3 +565,41 @@ def call_int(self: Judge, *args: AbsVal):
 
     func = S(intrinsic("PyNumber_Long"))
     return CallSpec(None, func(o), return_types)
+
+
+# @lru_cache()
+# def mk_call_type_n(N):
+#     args = ",".join(f"x{a}" for a in range(N))
+#     name = f"call_type{N}"
+#     f = f"""
+# def {name}(typ: AbsVal, {args}):
+#     o = typ.__new__(typ, {args})
+#     if not isinstance(o, typ):
+#         return o
+#     typ.__init__(o, {args})
+#     return o
+# """
+#     scope = {}
+#     exec(f, scope)
+#     func = scope[name]
+#     from diojit.user.client import jit
+#
+#     return jit(func, fixed_references=["isinstance"])
+#
+#
+# @register(type)
+# def call_type(self: Judge, typ: AbsVal, *args: AbsVal):
+#     if typ == Values.A_Type and args:
+#         if len(args) == 1:
+#             arg = args[0]
+#             if arg.type.is_s():
+#                 a_t = arg.type
+#                 return CallSpec(a_t, a_t, (Values.A_Type,))
+#             func = S(intrinsic("PyObject_Type"))
+#             return CallSpec(None, func(arg), (Values.A_Type,))
+#         return NotImplemented
+#     if typ.is_s():
+#         return self.spec(
+#             S(mk_call_type_n(len(args))), "__call__", [typ, *args]
+#         )
+#     return NotImplemented

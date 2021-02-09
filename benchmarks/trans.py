@@ -21,7 +21,7 @@ def f(x):
     return x
 
 
-jit_f = jit.jit_spec_call(f, jit.oftype(int))
+jit_f = jit.spec_call(f, jit.oftype(int))
 
 print(jit_f(10))
 print('pure py:', timeit.timeit("f(10)", globals=dict(f=f), number=111111111))

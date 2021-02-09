@@ -19,7 +19,7 @@ print("append3".center(70, "="))
 print(getsource(append3))
 
 # jit.In_Def.UserCodeDyn[append3].show()
-jit_append3 = jit.jit_spec_call(
+jit_append3 = jit.spec_call(
     append3,
     jit.oftype(list),
     jit.Top,

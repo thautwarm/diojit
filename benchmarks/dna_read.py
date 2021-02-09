@@ -85,7 +85,7 @@ def main2(out_io: bytearray):
 #     print(jit.jit_spec_call(b)())
 # b()
 
-jit_main = jit.jit_spec_call(
+jit_main = jit.spec_call(
     main2,
     jit.oftype(bytearray),
     # print_dio_ir=print,

@@ -99,7 +99,7 @@ def fib(a):
         return 1
     return fib(a + -1) + fib(a + -2)
 
-jit_fib = diojit.jit_spec_call(fib, diojit.oftype(int), diojit.oftype(int))
+jit_fib = diojit.spec_call(fib, diojit.oftype(int), diojit.oftype(int))
 jit_fib(15) # 600% faster than pure python
 ```
 
@@ -187,7 +187,7 @@ def append3(xs, x):
     xs.append(x)
     xs.append(x)
 
-jit_append3 = jit.jit_spec_call(append3, jit.oftype(list), jit.Top) # 'Top' means 'Any'
+jit_append3 = jit.spec_call(append3, jit.oftype(list), jit.Top) # 'Top' means 'Any'
 xs = [1]
 jit_append3(xs, 3)
 

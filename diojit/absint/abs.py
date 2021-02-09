@@ -308,6 +308,7 @@ class Shape:
     instance: Union[
         None, S, Callable[[tuple[NonD, ...]], Optional[S]]
     ] = dataclasses.field(default=None)
+    self_bound: bool = dataclasses.field(default=False)
 
 
 # None: means No Shape
@@ -1049,6 +1050,8 @@ class Judge:
                 # hack pycharm for type check
                 # noinspection PyUnboundLocalVariable
                 meth = meth_
+                if shape.self_bound:
+                    a_args = [a_sub, *a_args]
                 # noinspection PyTypeHints
                 if isinstance(meth, AbsVal):
                     return self.spec(meth, "__call__", a_args)

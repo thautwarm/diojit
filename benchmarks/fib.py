@@ -22,12 +22,12 @@ def fib_fix(a):
     return fib_fix(a + -1) + fib_fix(a + -2)
 
 
-jit_fib_fix_typed = jit.jit_spec_call(
+jit_fib_fix_typed = jit.spec_call(
     fib_fix,
     jit.oftype(int),
     # print_jl=print,
 )
-jit_fib_fix_untyped = jit.jit_spec_call(fib_fix, jit.Top)
+jit_fib_fix_untyped = jit.spec_call(fib_fix, jit.Top)
 jl_eval(f"println(J_fib__fix_1({splice(20)}))")
 # check_jl_err(libjl)
 print("fib".center(70, "="))

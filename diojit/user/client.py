@@ -17,12 +17,11 @@ from ..stack2reg.translate import translate
 from typing import Iterable
 
 __all__ = [
-    "eagerjit", "conservativejit",
+    "eagerjit",
+    "conservativejit",
     "jit",
     "eager_jitclass",
-    "jitclass",
-    "jit_spec_call",
-    "jit_spec_call_ir",
+    "jitclass", "spec_call", "spec_call_ir",
     "oftype",
     "ofval",
 ]
@@ -67,7 +66,7 @@ class Val:
     a: object
 
 
-def jit_spec_call_ir(
+def spec_call_ir(
     f: FunctionType, *args, attr="__call__", glob=None
 ):
     narg = f.__code__.co_argcount
@@ -91,7 +90,7 @@ def jit_spec_call_ir(
 _code_gen = None
 
 
-def jit_spec_call(
+def spec_call(
     f: absint.FunctionType,
     *args,
     attr="__call__",
@@ -115,7 +114,7 @@ def jit_spec_call(
         if isinstance(arg, Val):
             a_args.append(absint.from_runtime(arg.a))
         else:
-            assert isinstance(arg, absint.AbsVal)
+            assert isinstance(arg, absint.AbsVal), arg
             a_args.append(absint.D(len(rt_map), arg))
     a_f = absint.from_runtime(f, rt_map)
     j = absint.Judge({}, f, {} if glob is None else glob)
@@ -169,6 +168,8 @@ def conservativejit(
 
 _cache = {}
 
+u_inst_type = type(typing.Union[int, float])
+
 
 def process_annotations(anns: dict, glob: dict):
     if ret := _cache.get(id(anns)):
@@ -181,13 +182,10 @@ def process_annotations(anns: dict, glob: dict):
             v, typing.GenericAlias
         ):
             v = v.__origin__
-        elif (
-            type(v) is type(typing.Union)
-            and v.__origin__ is typing.Union
-        ):
+        elif type(v) is u_inst_type and v.__origin__ is typing.Union:
             return tuple(each(a) for a in v.__args__)
 
-        assert isinstance(v, type)
+        assert isinstance(v, type), v
         return S(v)
 
     ret = {k: each(v) for k, v in anns.items()}

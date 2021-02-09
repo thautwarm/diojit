@@ -14,7 +14,7 @@ from pathlib import Path
 import diojit as jit
 import typing
 
-sys.setrecursionlimit(2000)
+sys.setrecursionlimit(2200)
 print("brainfuck".center(50, "="))
 
 
@@ -133,7 +133,7 @@ class Program(object):
 
     def run(self, p, use_jit: bool):
         if use_jit:
-            _run_jit = jit.jit_spec_call(
+            _run_jit = jit.spec_call(
                 _run,
                 jit.oftype(list),
                 jit.oftype(Tape),

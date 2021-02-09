@@ -34,8 +34,8 @@ def fib_fix(a):
     return fib_fix(a + -1) + fib_fix(a + -2)
 
 
-jit_fib_fix_untyped = jit.jit_spec_call(fib_fix, jit.Top)
-jit_fib_fix_typed = jit.jit_spec_call(
+jit_fib_fix_untyped = jit.spec_call(fib_fix, jit.Top)
+jit_fib_fix_typed = jit.spec_call(
     fib_fix, jit.oftype(int)
 )
 # jl_eval(f"println(J_fib__fix_1({splice(20)}))")
@@ -87,13 +87,13 @@ print(getsource(hypot))
 
 
 jit_func_name = repr(
-    diojit.jit_spec_call_ir(
+    diojit.spec_call_ir(
         hypot, diojit.S(int), diojit.S(int)
     ).e_call.func
 )
 
 
-hypot_spec = diojit.jit_spec_call(
+hypot_spec = diojit.spec_call(
     hypot,
     diojit.oftype(int),
     diojit.oftype(int),
@@ -146,7 +146,7 @@ print("append3".center(70, "="))
 print(getsource(append3))
 
 # diojit.In_Def.UserCodeDyn[append3].show()
-jit_append3 = diojit.jit_spec_call(
+jit_append3 = diojit.spec_call(
     append3, diojit.oftype(list), diojit.Top
 )
 xs = [1]

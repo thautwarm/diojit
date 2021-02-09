@@ -18,7 +18,7 @@ def f(x):
 
 in_def = diojit.absint.In_Def.UserCodeDyn[test]
 # in_def.show()
-callspec = diojit.jit_spec_call_ir(f, diojit.Val(500))
+callspec = diojit.spec_call_ir(f, diojit.Val(500))
 print("return types: ", *callspec.possibly_return_types)
 print("instance    : ", callspec.instance)
 print("call expr   : ", callspec.e_call)

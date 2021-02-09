@@ -29,13 +29,13 @@ print(getsource(hypot))
 
 
 jit_func_name = repr(
-    jit.jit_spec_call_ir(
+    jit.spec_call_ir(
         hypot, jit.S(int), jit.S(int)
     ).e_call.func
 )
 
 
-hypot_spec = jit.jit_spec_call(
+hypot_spec = jit.spec_call(
     hypot,
     jit.oftype(int),
     jit.oftype(int),
