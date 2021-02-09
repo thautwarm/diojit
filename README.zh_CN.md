@@ -29,7 +29,7 @@ are not exposed. In this case, although the JIT can infer the types, we have to 
 
 P.S:
 DIO-JIT可以做聪明的部分求值, 但为了编译器的快速收敛，online常量折叠默认是关闭的。
-你可以在领域特定任务中使用这个能力。 这里有一个对cpython提速 **500倍**的例子: [fibs.py](https://github.com/thautwarm/diojit/blob/master/slide-examples/fibs.py) 
+你可以在领域特定任务中使用这个能力。 这里有一个对cpython提速 **500倍**的例子: [fibs.py](https://github.com/thautwarm/diojit/blob/master/benchmarks/const_fib.py) 
 
 ## 安装
 

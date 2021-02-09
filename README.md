@@ -27,7 +27,7 @@ are not exposed. In this case, although the JIT can infer the types, we have to 
 
 P.S:
 DIO-JIT can do very powerful partial evaluation, which is disabled in default but you can
-leverage it in your domain specific tasks. Here is an example of achieving **500x** speed up aginst pure Python: [fibs.py](https://github.com/thautwarm/diojit/blob/master/slide-examples/fibs.py) 
+leverage it in your domain specific tasks. Here is an example of achieving **500x** speed up aginst pure Python: [fibs.py](https://github.com/thautwarm/diojit/blob/master/benchmarks/const_fib.py) 
 
 
 ## Install Instructions
