@@ -1,6 +1,6 @@
 ## DIO-JIT: General-purpose Python JIT
 
-[![中文README](https://img.shields.io/badge/i18n-%E4%B8%AD%E6%96%87%E6%96%87%E6%A1%A3-teal)](https://github.com/thautwarm/diojit/blob/master/README.zh_CN.md) [![PyPI version shields.io](https://img.shields.io/pypi/v/diojit.svg)](https://pypi.python.org/pypi/diojit/) 
+[![中文README](https://img.shields.io/badge/i18n-%E4%B8%AD%E6%96%87%E6%96%87%E6%A1%A3-teal)](https://github.com/thautwarm/diojit/blob/master/README.zh_CN.md) [![PyPI version shields.io](https://img.shields.io/pypi/v/diojit.svg)](https://pypi.python.org/pypi/diojit/)
 [![JIT](https://img.shields.io/badge/cpython-3.8|3.9-green.svg)](https://pypi.python.org/pypi/diojit/)
 
 Important:
@@ -11,24 +11,22 @@ Important:
 
 ### Benchmark
 
-| Item  | PY38  | JIT PY38   | PY39   | JIT PY39  |
-|---|---|---|---|---|
-| [BF](https://github.com/thautwarm/diojit/blob/master/benchmarks/brainfuck.py)   | 265.74  | 134.23  | 244.50  |  140.34 |
-| [append3](https://github.com/thautwarm/diojit/blob/master/benchmarks/append3.py)  | 23.94  |  10.70 | 22.29  | 11.21  |
-| [DNA READ](https://github.com/thautwarm/diojit/blob/master/benchmarks/dna_read.py)  | 16.96  | 14.82  | 15.03   | 14.38  |
-| [fib(15)](https://github.com/thautwarm/diojit/blob/master/benchmarks/fib.py) | 11.63  | 1.54  | 10.41   | 1.51  |
-| [hypot(str, str)](https://github.com/thautwarm/diojit/blob/master/benchmarks/hypot.py)  | 6.19  | 3.87  | 6.53  | 4.29  |
-| [selectsort](https://github.com/thautwarm/diojit/blob/master/benchmarks/selection_sort.py)  | 46.95  | 33.88  | 38.71  | 29.49  |
-| [trans](https://github.com/thautwarm/diojit/blob/master/benchmarks/trans.py)  | 24.22  | 7.79  |  23.23 | 7.71  |
+| Item                                                                                       | PY38   | JIT PY38 | PY39   | JIT PY39 |
+| ------------------------------------------------------------------------------------------ | ------ | -------- | ------ | -------- |
+| [BF](https://github.com/thautwarm/diojit/blob/master/benchmarks/brainfuck.py)              | 265.74 | 134.23   | 244.50 | 140.34   |
+| [append3](https://github.com/thautwarm/diojit/blob/master/benchmarks/append3.py)           | 23.94  | 10.70    | 22.29  | 11.21    |
+| [DNA READ](https://github.com/thautwarm/diojit/blob/master/benchmarks/dna_read.py)         | 16.96  | 14.82    | 15.03  | 14.38    |
+| [fib(15)](https://github.com/thautwarm/diojit/blob/master/benchmarks/fib.py)               | 11.63  | 1.54     | 10.41  | 1.51     |
+| [hypot(str, str)](https://github.com/thautwarm/diojit/blob/master/benchmarks/hypot.py)     | 6.19   | 3.87     | 6.53   | 4.29     |
+| [selectsort](https://github.com/thautwarm/diojit/blob/master/benchmarks/selection_sort.py) | 46.95  | 33.88    | 38.71  | 29.49    |
+| [trans](https://github.com/thautwarm/diojit/blob/master/benchmarks/trans.py)               | 24.22  | 7.79     | 23.23  | 7.71     |
 
-The bechmark item "DNA READ" does not show a significant performance gain, this is because "DNA READ" heavily uses `bytearray` and `bytes`, whose specialised C-APIs
+The benchmark item "DNA READ" does not show a significant performance gain, this is because "DNA READ" heavily uses `bytearray` and `bytes`, whose specialised C-APIs
 are not exposed. In this case, although the JIT can infer the types, we have to fall back to CPython's default behaviour, or even worse: after all, the interpreter can access internal things, while we cannot.
-
 
 P.S:
 DIO-JIT can do very powerful partial evaluation, which is disabled in default but you can
-leverage it in your domain specific tasks. Here is an example of achieving **500x** speed up aginst pure Python: [fibs.py](https://github.com/thautwarm/diojit/blob/master/benchmarks/const_fib.py) 
-
+leverage it in your domain specific tasks. Here is an example of achieving **500x** speed up against pure Python: [fibs.py](https://github.com/thautwarm/diojit/blob/master/benchmarks/const_fib.py)
 
 ## Install Instructions
 
@@ -40,12 +38,17 @@ There are several options for you to install Julia:
 - [scoop](http://scoop.sh/) (Windows)
 - [julialang.org](https://julialang.org/downloads) (recommended for Windows users)
 - [jill.py](https://github.com/johnnychen94/jill.py):
-    
-    `pip install jill && jill install 1.6 --upstream Official`
+
+```bash
+$ pip install jill && jill install 1.6 --upstream Official
+```
 
 - [jill](https://github.com/abelsiqueira/jill) (Mac and Linux only!):
-    
-    `bash -ci "$(curl -fsSL https://raw.githubusercontent.com/abelsiqueira/jill/master/jill.sh)"`
+
+```bash
+$ bash -ci "$(curl -fsSL https://raw.githubusercontent.com/abelsiqueira/jill/master/jill.sh)"
+```
+
 </p>
 </details>
 
@@ -68,7 +71,9 @@ julia> using DIO # precompile
 <details><summary>Step 3: Install Python Package</summary>
 <p>
 
-`pip install git+https://github.com/thautwarm/diojit`
+```bash
+$ pip install git+https://github.com/thautwarm/diojit
+```
 
 </p>
 </details>
@@ -78,17 +83,18 @@ julia> using DIO # precompile
 
 <details><summary>How to fetch latest DIO-JIT?(if you have installed DIO)</summary>
 
-<p> 
+<p>
 
+```bash
+$ pip install -U diojit
+$ julia -e "using Pkg; Pkg.update(string(:DIO));using DIO"
 ```
-pip install -U diojit
-julia -e "using Pkg; Pkg.update(string(:DIO));using DIO"
-``` 
 
 </p>
 </details>
 
 Usage from Python side is quite similar to that from Numba.
+
 ```python
 import diojit
 from math import sqrt
@@ -116,9 +122,8 @@ However, due to the bandwidth limitation, rules for `operator.__sub__` is not im
 Although specilisation is common in the scope of optimisation, unlike many other JIT attempts, DIO-JIT doesn't need to
 hard encode rules at compiler level. The DIO-JIT compiler implements the skeleton of abstract interpretation, but concrete
 rules for specialisation and other inferences can be added within Python itself in an extensible way!
-  
-See an example below.
 
+See an example below.
 
 ## Contribution Example: Add a specialisation rule for `list.append`
 
@@ -148,18 +153,16 @@ Usually it's calling a CPython C API, but sometimes may not.
 
 No matter if it is an existing CPython C API, we can implement intrinsics in Julia.
 
-
 - [import PyList_Append symbol](https://github.com/thautwarm/DIO.jl/blob/c3ec304645437da6bb02c9e5acb0c91e5e3800a8/src/symbols.jl#L53)
 
 - [generate PyList_Append calling convention](https://github.com/thautwarm/DIO.jl/blob/5fa79357798ff3eaee561d14d4f04a271213282c/src/dynamic.jl#L120):
-    
-    
+
     ```julia
     @autoapi PyList_Append(PyPtr, PyPtr)::Cint != Cint(-1) cast(_cint2none) nocastexc
     ```
-    
+
     As a consequence, we automatically generate an instrinsic function for DIO-JIT. This intrinsic function
-    is capable of handling CPython exception and reference counting.  
+    is capable of handling CPython exception and reference counting.
 
 You can either do step 2) at Python side. It might looks more intuitive.
 
@@ -213,18 +216,18 @@ We prefer compiling JITed code with LLVM, and **Julia is quite a killer tool for
 1. Support for `*varargs` and `**kwargs` are not ready: we do can immediately support them with very tiny JIT performance gain, but considering backward compatibility we decide not to do this.
 
 2. Exception handling is not yet supported inside JIT functions.
-    
+
     <details><summary>Why?</summary>
     <p>
-    
+
     We haven't implemented the translation from exception handling bytecode to untyped DIO IR (`jit.absint.abs.In_Stmt`).
-    
+
     </p>
     </details>
-    
+
     <details><summary>Will support?</summary>
     <p>
-    
+
     Yes.
 
     In fact, now a callsite in any JIT function can raise an exception. It will not be handled by JIT functions, instead, it is lifted up to the root call, which is a pure Python call.
@@ -250,11 +253,11 @@ We prefer compiling JITed code with LLVM, and **Julia is quite a killer tool for
 
     <details><summary>Will support?</summary>
     <p>
-    
+
     Yes.
 
     This will be finished simultaneously with support for exception handling (faster `for` loop might come later).
-    
+
     </p>
     </details>
 
@@ -268,13 +271,13 @@ We prefer compiling JITed code with LLVM, and **Julia is quite a killer tool for
     However, a writable cell makes it hard to optimise in a dynamic language.
 
     We recommend using `types.MethodType` to create immutable closures，which can be highly optimised in DIO-JIT(near future).
-    
+
     ```python
     import types
     def f(freevars, z):
             x, y = freevars
             return x + y + z
-    
+
     def hof(x, y):
         return types.MethodType(f, (x, y))
     ```
@@ -284,7 +287,7 @@ We prefer compiling JITed code with LLVM, and **Julia is quite a killer tool for
 
     <details><summary>Will support?</summary>
     <p>
-    
+
     Still yes. However, don't expect much about the performance gain for Python's vanilla closures.
 
     </p>
@@ -298,7 +301,7 @@ We prefer compiling JITed code with LLVM, and **Julia is quite a killer tool for
 
     <details><summary>Possibility?</summary>
     <p>
-    
+
     Recently we found CPython's newly(`:)`) added feature `Dict.ma_version_tag` might be used to automatically notifying JITed functions to re-compile when the global references change.
 
     More research is required.

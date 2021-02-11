@@ -1,6 +1,6 @@
 ## DIO-JIT:  Python的泛用jit
 
-[![README](https://img.shields.io/badge/i18n-English-teal)](https://github.com/thautwarm/diojit/blob/master/README.zh_CN.md) [![PyPI version shields.io](https://img.shields.io/pypi/v/diojit.svg)](https://pypi.python.org/pypi/diojit/) 
+[![README](https://img.shields.io/badge/i18n-English-teal)](https://github.com/thautwarm/diojit/blob/master/README.zh_CN.md) [![PyPI version shields.io](https://img.shields.io/pypi/v/diojit.svg)](https://pypi.python.org/pypi/diojit/)
 [![JIT](https://img.shields.io/badge/cpython-3.8|3.9-green.svg)](https://pypi.python.org/pypi/diojit/)
 
 DIO-JIT是一种 method JIT, 在抽象解释和调用点特化下成为可能。抽象解释由编译器实现，而特化规则可以扩展式地注册(例见`jit.absint.prescr`)。
@@ -11,25 +11,24 @@ Important:
 2. 在多数情况下来看，目前DIO-JIT不适合生产环境。我们还需要提供更多的特化规则，来让DIO-JIT变得开箱即用。
 3. 这个文档主要是为开发者提供的。用户不需要了解如何写特化规则，只需要使用`jit.jit(func_obj)`和`jit.spec_call(func_obj, arg_specs...)`。
 
-
 ## Benchmark
 
-| Item  | PY38  | JIT PY38   | PY39   | JIT PY39  |
-|---|---|---|---|---|
-| [BF](https://github.com/thautwarm/diojit/blob/master/benchmarks/brainfuck.py)   | 265.74  | 134.23  | 244.50  |  140.34 |
-| [append3](https://github.com/thautwarm/diojit/blob/master/benchmarks/append3.py)  | 23.94  |  10.70 | 22.29  | 11.21  |
-| [DNA READ](https://github.com/thautwarm/diojit/blob/master/benchmarks/dna_read.py)  | 16.96  | 14.82  | 15.03   | 14.38  |
-| [fib(15)](https://github.com/thautwarm/diojit/blob/master/benchmarks/fib.py) | 11.63  | 1.54  | 10.41   | 1.51  |
-| [hypot(str, str)](https://github.com/thautwarm/diojit/blob/master/benchmarks/hypot.py)  | 6.19  | 3.87  | 6.53  | 4.29  |
-| [selectsort](https://github.com/thautwarm/diojit/blob/master/benchmarks/selection_sort.py)  | 46.95  | 33.88  | 38.71  | 29.49  |
-| [trans](https://github.com/thautwarm/diojit/blob/master/benchmarks/trans.py)  | 24.22  | 7.79  |  23.23 | 7.71  |
+| Item                                                                                       | PY38   | JIT PY38 | PY39   | JIT PY39 |
+| ------------------------------------------------------------------------------------------ | ------ | -------- | ------ | -------- |
+| [BF](https://github.com/thautwarm/diojit/blob/master/benchmarks/brainfuck.py)              | 265.74 | 134.23   | 244.50 | 140.34   |
+| [append3](https://github.com/thautwarm/diojit/blob/master/benchmarks/append3.py)           | 23.94  | 10.70    | 22.29  | 11.21    |
+| [DNA READ](https://github.com/thautwarm/diojit/blob/master/benchmarks/dna_read.py)         | 16.96  | 14.82    | 15.03  | 14.38    |
+| [fib(15)](https://github.com/thautwarm/diojit/blob/master/benchmarks/fib.py)               | 11.63  | 1.54     | 10.41  | 1.51     |
+| [hypot(str, str)](https://github.com/thautwarm/diojit/blob/master/benchmarks/hypot.py)     | 6.19   | 3.87     | 6.53   | 4.29     |
+| [selectsort](https://github.com/thautwarm/diojit/blob/master/benchmarks/selection_sort.py) | 46.95  | 33.88    | 38.71  | 29.49    |
+| [trans](https://github.com/thautwarm/diojit/blob/master/benchmarks/trans.py)               | 24.22  | 7.79     | 23.23  | 7.71     |
 
 The bechmark item "DNA READ" does not show a significant performance gain, this is because "DNA READ" heavily uses `bytearray` and `bytes`, whose specialised C-APIs
 are not exposed. In this case, although the JIT can infer the types, we have to fall back to CPython's default behaviour, or even worse: after all, the interpreter can access internal things, while we cannot.
 
 P.S:
 DIO-JIT可以做聪明的部分求值, 但为了编译器的快速收敛，online常量折叠默认是关闭的。
-你可以在领域特定任务中使用这个能力。 这里有一个对cpython提速 **500倍**的例子: [fibs.py](https://github.com/thautwarm/diojit/blob/master/benchmarks/const_fib.py) 
+你可以在领域特定任务中使用这个能力。 这里有一个对cpython提速 **500倍**的例子: [fibs.py](https://github.com/thautwarm/diojit/blob/master/benchmarks/const_fib.py)
 
 ## 安装
 
@@ -41,12 +40,16 @@ DIO-JIT可以做聪明的部分求值, 但为了编译器的快速收敛，onlin
 - [scoop](http://scoop.sh/) (Windows)
 - [julialang.org](https://cn.julialang.org/downloads/) (Windows)
 - [jill.py](https://github.com/johnnychen94/jill.py) (跨平台，但安装路径不符合Windows上Unix用户习惯):
-    
-    `pip install jill && jill install 1.6`
+
+```bash
+$ pip install jill && jill install 1.6
+```
 
 - [jill](https://github.com/abelsiqueira/jill) (Mac and Linux):
-    
-    `bash -ci "$(curl -fsSL https://raw.githubusercontent.com/abelsiqueira/jill/master/jill.sh)"`
+
+```bash
+$ bash -ci "$(curl -fsSL https://raw.githubusercontent.com/abelsiqueira/jill/master/jill.sh)"
+```
 
 </p>
 </details>
@@ -70,7 +73,9 @@ julia> using DIO # 预编译
 <details><summary>3: 安装Python</summary>
 <p>
 
-`pip install git+https://github.com/thautwarm/diojit`
+```bash
+$ pip install git+https://github.com/thautwarm/diojit
+```
 
 </p>
 </details>
@@ -81,15 +86,16 @@ julia> using DIO # 预编译
 <details><summary>如何获取最新的DIO-JIT?(需安装过DIO-JIT)</summary>
 <p>
 
+```bash
+$ pip install -U diojit
+$ julia -e "using Pkg; Pkg.update(string(:DIO));using DIO"
 ```
-pip install -U diojit
-julia -e "using Pkg; Pkg.update(string(:DIO));using DIO"
-``` 
 
 </p>
 </details>
 
 从Python端使用DIO-JIT和使用Numba类似:
+
 ```python
 import diojit
 from math import sqrt
@@ -118,7 +124,6 @@ jit_fib(15) # 比原生Python快600%以上
 而更具体的推导、特化规则，在Python里就可以扩展式地添加！
 
 下面是一个例子。
-
 
 ## 代码贡献案例: 为`list.append`注册特化规则
 
@@ -151,12 +156,11 @@ def list_append_analysis(self: jit.Judge, *args: jit.AbsVal):
 - [导入PyList_Append符号](https://github.com/thautwarm/DIO.jl/blob/c3ec304645437da6bb02c9e5acb0c91e5e3800a8/src/symbols.jl#L53)
 
 - [生成PyList_Append的调用约定](https://github.com/thautwarm/DIO.jl/blob/5fa79357798ff3eaee561d14d4f04a271213282c/src/dynamic.jl#L120):
-    
-    
+
     ```julia
     @autoapi PyList_Append(PyPtr, PyPtr)::Cint != Cint(-1) cast(_cint2none) nocastexc
     ```
-    
+
     这样一来，我们就自动生成了一个能够处理CPython错误处理和引用计数的原语函数。
 
 实际上，你也可以在Python端手动实现步骤2，没有宏看起来可能会更直观一些：
@@ -212,18 +216,18 @@ xs = []
 1. **暂**未支持不定参数和关键字参数。我们可以立刻支持它们，并提供较小的JIT性能提升。但由此可能引来后向兼容的问题，权衡之下还是暂且搁置。
 
 2. **暂**不支持在JIT函数中处理异常.
-    
+
     <details><summary>？？？</summary>
     <p>
-    
+
     还未实现从相关的CPython字节码到无类型DIO IR的转译(`jit.absint.abs.In_Stmt`)
 
     </p>
     </details>
-    
+
     <details><summary>会支持吗?</summary>
     <p>
-    
+
     会的。
 
     实际上，目前JIT函数内部的调用可以正常抛错。这样的错误无法被JIT函数处理，而是被交给更上层。
@@ -241,7 +245,7 @@ xs = []
     <p>
 
     首先，在CPython中，`for`循环的视线依赖错误处理，而这目前还未支持。
-    
+
     其次，我们在考虑一个更高效的`for`循环实现，可能会提议一个`__citer__`协议用以JIT函数的优化。而这需要和Python开发者进一步探讨。
 
     </p>
@@ -249,7 +253,7 @@ xs = []
 
     <details><summary>会支持吗?</summary>
     <p>
-    
+
     嗯。
 
     这会和错误处理同时实现。快速`for`可能会引入得更晚一些。
@@ -265,15 +269,15 @@ xs = []
     在命令式语言中，闭包使用一种叫`cell`的数据结构来实现可变(mutable)的自由变量(free variables)。
 
     然而，在动态语言里边，优化可写的闭包是一个相当困难的问题。
-    
+
     我们建议你使用`types.MethodType`创建自由变量不可变的闭包，这是DIO-JIT（很快就能）高效优化的写法。
-    
+
     ```python
     import types
     def f(freevars, z):
             x, y = freevars
             return x + y + z
-    
+
     def hof(x, y):
         return types.MethodType(f, (x, y))
     ```
@@ -283,21 +287,21 @@ xs = []
 
     <details><summary>会支持吗?</summary>
     <p>
-    
+
     会是会的，毕竟我们的目的是覆盖所有的CPython代码。
-    
+
     但对此不要期待很大性能提升。
 
     </p>
     </details>
 
-5. 手动指定不可变全局变量太啰嗦了？(`@diojit.jit(fixed_references=['isinstance', 'str', ...]`) 
+5. 手动指定不可变全局变量太啰嗦了？(`@diojit.jit(fixed_references=['isinstance', 'str', ...]`)
 
     很遗憾，你得这样。我们在考虑全自动JIT的可能性，但Python任人随意修改的全部变量是这个目标最大的阻碍。
-    
+
     <details><summary>不写行不行?</summary>
     <p>
-    
+
     可能会可以的。
 
     近期CPython优化了存储全局变量的字典。字典的内存布局多了一个名为`ma_version_tag`的数字，用以指示字典最近被写入过。这个改动可能可以用来触发JIT函数的重编译。
