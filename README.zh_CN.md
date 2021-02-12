@@ -39,10 +39,10 @@ DIO-JIT可以做聪明的部分求值, 但为了编译器的快速收敛，onlin
 推荐以如下方式安装Julia:
 
 - [scoop](http://scoop.sh/) (Windows)
-- [julialang.org](https://julialang.org/downloads) (Windows)
+- [julialang.org](https://cn.julialang.org/downloads/) (Windows)
 - [jill.py](https://github.com/johnnychen94/jill.py) (跨平台，但安装路径不符合Windows上Unix用户习惯):
     
-    `pip install jill && jill install 1.6 --upstream Official`
+    `pip install jill && jill install 1.6`
 
 - [jill](https://github.com/abelsiqueira/jill) (Mac and Linux):
     
